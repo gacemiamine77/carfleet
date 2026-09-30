@@ -1,0 +1,9 @@
+{
+  "name": "Unités Sécurité Routière DZ",
+  "short_name": "Unités SR",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1e3a8a",
+  "theme_color": "#1e3a8a",
+  "icons": []
+}

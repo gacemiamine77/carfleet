@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#1e3a8a">
+<title>Unités Sécurité Routière — DZ</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}body{font-family:system-ui;margin:0;background:#f1f5f9;color:#0f172a}
+header{background:#1e3a8a;color:#fff;padding:10px 14px;display:flex;gap:10px;align-items:center;position:sticky;top:0;z-index:10}
+header h1{font-size:16px;margin:0}.badge{background:#ef4444;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700}
+main{padding:10px;max-width:1100px;margin:auto;display:flex;flex-direction:column;gap:10px}
+.filters{background:#fff;border-radius:10px;padding:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;box-shadow:0 1px 3px #0002}
+.filters label{font-size:12px;display:flex;flex-direction:column;gap:4px}
+select,input,button{padding:8px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px}
+button{background:#1e3a8a;color:#fff;border:0;font-weight:700;cursor:pointer}
+button.ghost{background:#fff;color:#1e3a8a;border:1px solid #1e3a8a}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.card{background:#fff;border-radius:10px;padding:10px;box-shadow:0 1px 3px #0002}
+.card b{font-size:20px;display:block}.card span{font-size:12px;color:#64748b}
+#map{height:420px;border-radius:10px;box-shadow:0 1px 3px #0002;z-index:0}
+table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:10px;overflow:hidden}
+th,td{padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:left}
+th{background:#f8fafc;position:sticky;top:0}
+.tbl{max-height:320px;overflow:auto;border-radius:10px;box-shadow:0 1px 3px #0002}
+.pill{padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;display:inline-block}
+.p-nouveau{background:#fee2e2;color:#991b1b}.p-notifie{background:#fef3c7;color:#92400e}.p-traite{background:#dcfce7;color:#166534}
+#log{background:#0f172a;color:#e2e8f0;font-family:monospace;font-size:11px;border-radius:10px;padding:8px;height:110px;overflow:auto}
+@media(max-width:600px){#map{height:320px}header h1{font-size:14px}}
+</style>
+</head>
+<body>
+<header>
+<span style="font-size:22px">🚓</span>
+<h1>Unités Sécurité Routière — Algérie</h1>
+<span class="badge" id="count">0</span>
+<span style="margin-left:auto;font-size:12px" id="conn">…</span>
+</header>
+<main>
+<div class="filters">
+<label>URL plateforme<input id="url" value="http://192.168.0.2:3000"></label>
+<label>Wilaya (territoire)<select id="wilaya"><option value="all">Toutes (58)</option></select></label>
+<label>Unité<select id="type"><option value="all">Police + Gendarmerie</option><option value="police">Police</option><option value="gendarmerie">Gendarmerie</option></select></label>
+<label>Type infraction<select id="infraction"><option value="all">Toutes</option><option>exces de vitesse</option><option>zone interdite</option><option>circulation à contresens</option><option>conduite longue sans arrêt</option><option>arrêt interdit</option><option>stationnement interdit</option><option>impossible de comparée</option></select></label>
+<label>Type véhicule<select id="cat"><option value="all">Tous</option><option value="leger">Léger</option><option value="lourd">Lourd</option><option value="transport">Transport</option><option value="transport_dangereux">Dangereux</option><option value="convoi_exceptionnel">Convoi exceptionnel</option></select></label>
+<label>Statut<select id="statut"><option value="all">Tous</option><option value="nouveau">Nouveau</option><option value="notifie">Notifié</option><option value="traite">Traité</option></select></label>
+<label>Dispositif unité<select id="moyen"><option value="all">Tous dispositifs</option><option value="barrage_fixe">🚧 Barrage fixe</option><option value="barrage_mobile">🚔 Barrage mobile</option><option value="motards">🏍️ Motards</option><option value="vehicule_mobile">🚙 Véhicule mobile</option><option value="poste_fixe">🏢 Poste fixe</option></select></label>
+<label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="showU" checked style="width:auto"> 🚓 Unités sur carte</label>
+<label>&nbsp;<button id="go">🔄 Actualiser</button></label>
+<label>&nbsp;<button id="auto" class="ghost">⏱️ Auto: OFF</button></label>
+</div>
+<div class="stats" id="stats"></div>
+<div id="map"></div>
+<div class="tbl"><table><thead><tr><th>Heure</th><th>Wilaya</th><th>Infraction</th><th>Véhicule</th><th>Cat.</th><th>Vitesse</th><th>Position</th><th>Statut</th><th>Action</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div id="log"></div>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let map,layer,unitsLayer,autoT=null,infMarkers=[],keepView=false;
+function log(m){const b=document.getElementById('log');const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+m;b.prepend(d);}
+async function loadWilayas(){
+  const base=document.getElementById('url').value.replace(/\/$/,'');
+  try{
+    const r=await fetch(base+'/api/unites');const j=await r.json();
+    const seen=new Map();
+    (j.unites||[]).forEach(u=>{if(!seen.has(u.codeWilaya))seen.set(u.codeWilaya,u.wilaya);});
+    const sel=document.getElementById('wilaya');const cur=sel.value;
+    sel.innerHTML='<option value="all">Toutes (58)</option>'+[...seen.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([c,n])=>'<option value="'+c+'">'+c+' - '+n+'</option>').join('');
+    if(cur)sel.value=cur;
+  }catch(e){log('wilayas fail '+e.message);}
+}
+async function refresh(){
+  const base=document.getElementById('url').value.replace(/\/$/,'');
+  const w=document.getElementById('wilaya').value, inf=document.getElementById('infraction').value,
+        cat=document.getElementById('cat').value, st=document.getElementById('statut').value;
+  const q=new URLSearchParams({limit:'1000'});
+  if(w!=='all')q.set('codeWilaya',w); if(inf!=='all')q.set('infraction',inf);
+  if(cat!=='all')q.set('categorieVehicule',cat); if(st!=='all')q.set('statut',st);
+  document.getElementById('conn').textContent='⏳ '+base;
+  try{
+    const r=await fetch(base+'/api/unites/infractions?'+q.toString());
+    const j=await r.json();
+    if(j.error){log('ERR '+j.error);return;}
+    const list=j.infractions||[];
+    document.getElementById('count').textContent=list.length;
+    document.getElementById('conn').textContent='🟢 '+new Date().toLocaleTimeString();
+    // stats
+    const s=j.stats||{parType:{},parCategorie:{},parStatut:{}};
+    const topType=Object.entries(s.parType).sort((a,b)=>b[1]-a[1])[0];
+    document.getElementById('stats').innerHTML=
+      card(list.length,'Infractions (territoire)')+card(s.parStatut?.nouveau||0,'Nouveaux à traiter')+
+      card((topType?topType[0]+' ('+topType[1]+')':'—'),'Top infraction')+
+      card(Object.keys(s.parCategorie||{}).length,'Catégories véhicule')+
+      card(Object.keys(s.parWilaya||{}).length,'Wilayas touchées');
+    // table — clic sur une ligne = localiser l'infraction sur la carte
+    document.getElementById('rows').innerHTML=list.slice(0,300).map(x=>
+      '<tr class="infrow" data-lat="'+x.latitude+'" data-lon="'+x.longitude+'" data-id="'+x.id+'" style="cursor:pointer" title="Cliquer pour localiser sur la carte"><td>'+new Date(x.recordedAt).toLocaleString('fr-DZ')+'</td><td><b>'+(x.codeWilaya||'')+'</b> '+x.wilaya+'</td>'+
+      '<td>'+x.infraction+'</td><td>'+(x.immatriculation||'')+' <small>'+(x.carId||'')+'</small><br><small>'+(x.conducteurNom||'')+'</small></td>'+
+      '<td>'+(x.categorieVehicule||'')+'</td><td>'+(x.vitesse||0)+' / '+(x.vitesseLimite??'—')+'</td>'+
+      '<td><a href="#" data-lat="'+x.latitude+'" data-lon="'+x.longitude+'" class="goto">'+Number(x.latitude).toFixed(4)+','+Number(x.longitude).toFixed(4)+'</a></td>'+
+      '<td><span class="pill p-'+x.statut+'">'+x.statut+'</span></td>'+
+      '<td>'+(x.statut!=='traite'?'<button data-id="'+x.id+'" class="traite">✔ Traité</button>':'')+'</td></tr>').join('');
+    // map
+    if(!map){map=L.map('map').setView([35.5,3.0],6);
+      const bases={'🗺️ CARTO Clair':L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{attribution:'© OSM © CARTO',subdomains:'abcd',maxZoom:19}),
+        '🌙 CARTO Sombre':L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OSM © CARTO',subdomains:'abcd',maxZoom:19}),
+        '🛰️ Esri Satellite':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri',maxZoom:19}),
+        '⛰️ Esri Topo':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri',maxZoom:19}),
+        '🇫🇷 OSM France':L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',{attribution:'© OSM France © OSM',subdomains:'abc',maxZoom:20})};
+      bases['🗺️ CARTO Clair'].addTo(map);L.control.layers(bases).addTo(map);layer=L.layerGroup().addTo(map);}
+    layer.clearLayers(); infMarkers=[];
+    const color=i=>i==='exces de vitesse'?'red':i==='zone interdite'?'orange':i==='circulation à contresens'?'purple':i==='conduite longue sans arrêt'?'brown':'blue';
+    list.slice(0,1000).forEach(x=>{
+      const m=L.circleMarker([x.latitude,x.longitude],{radius:6,color:color(x.infraction),fillOpacity:.8}).addTo(layer)
+       .bindPopup('<b>'+x.infraction+'</b><br>'+(x.immatriculation||x.carId)+'<br>'+x.wilaya+' ('+x.codeWilaya+')<br>'+new Date(x.recordedAt).toLocaleString('fr-DZ'));
+      infMarkers.push({id:x.id,marker:m});
+    });
+    // unités police/gendarmerie sur les routes (GeoJSON)
+    if(!unitsLayer){unitsLayer=L.layerGroup().addTo(map);}
+    unitsLayer.clearLayers();
+    if(document.getElementById('showU').checked){
+      try{
+        const uq=new URLSearchParams();
+        if(w!=='all')uq.set('codeWilaya',w);
+        const t=document.getElementById('type').value; if(t!=='all')uq.set('type',t);
+        const mo=document.getElementById('moyen').value; if(mo!=='all')uq.set('moyen',mo);
+        const ur=await fetch(base+'/api/unites/geojson?'+uq.toString());
+        const uj=await ur.json();
+        const emoji=m=>m==='barrage_fixe'?'🚧':m==='barrage_mobile'?'🚔':m==='motards'?'🏍️':m==='vehicule_mobile'?'🚙':'🏢';
+        (uj.features||[]).slice(0,500).forEach(f=>{
+          const p=f.properties, c=f.geometry.coordinates;
+          const ic=L.divIcon({className:'',html:'<span style="font-size:20px">'+emoji(p.moyen)+'</span>',iconSize:[22,22],iconAnchor:[11,11]});
+          L.marker([c[1],c[0]],{icon:ic}).addTo(unitsLayer)
+           .bindPopup('<b>'+p.nom+'</b><br>'+p.code+' · '+(p.mobile?'mobile':'fixe')+'<br>'+(p.telephone||''));
+        });
+        log('OK '+(uj.features||[]).length+' unités');
+      }catch(e){log('unités fail '+e.message);}
+    }
+    if(list.length && !keepView){const b=L.latLngBounds(list.slice(0,1000).map(x=>[x.latitude,x.longitude]));map.fitBounds(b.pad(.1));}
+    log('OK '+list.length+' infractions');
+  }catch(e){document.getElementById('conn').textContent='🔴 '+e.message;log('fetch fail '+e.message);}
+}
+function card(v,l){return '<div class="card"><b>'+v+'</b><span>'+l+'</span></div>';}
+document.getElementById('go').onclick=()=>{loadWilayas();refresh();};
+document.getElementById('auto').onclick=e=>{const b=e.target;if(autoT){clearInterval(autoT);autoT=null;b.textContent='⏱️ Auto: OFF';}else{keepView=true;autoT=setInterval(()=>{keepView=true;refresh();},5000);b.textContent='⏱️ Auto: ON (5s)';keepView=true;refresh();}};
+function locate(lat,lon,id){
+  if(!map)return; keepView=true;
+  map.flyTo([+lat,+lon],15,{duration:.8});
+  const f=infMarkers.find(m=>String(m.id)===String(id));
+  if(f)setTimeout(()=>f.marker.openPopup(),850);
+  document.querySelectorAll('#rows tr').forEach(tr=>tr.style.background=String(tr.dataset.id)===String(id)?'#dbeafe':'');
+}
+document.addEventListener('click',async e=>{
+  if(e.target.classList.contains('goto')){e.preventDefault();locate(e.target.dataset.lat,e.target.dataset.lon,null);}
+  const row=e.target.closest && e.target.closest('tr.infrow');
+  if(row && !e.target.classList.contains('traite')){locate(row.dataset.lat,row.dataset.lon,row.dataset.id);}
+  if(e.target.classList.contains('traite')){
+    const base=document.getElementById('url').value.replace(/\/$/,'');
+    await fetch(base+'/api/unites/infractions',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:+e.target.dataset.id,statut:'traite'})});
+    keepView=true; refresh();
+  }
+});
+document.getElementById('go').onclick=()=>{keepView=false;loadWilayas();refresh();};
+['wilaya','type','infraction','cat','statut','moyen'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{keepView=false;}));
+loadWilayas();refresh();
+</script>
+</body>
+</html>

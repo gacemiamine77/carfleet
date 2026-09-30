@@ -1,0 +1,10 @@
+const simRes = await fetch("http://127.0.0.1:3000/api/simulation");
+const simData = await simRes.json();
+console.log("sim cars", simData.carsList?.length, simData.carsList?.map(c=>c.carId).slice(0,5));
+console.log("customRoads", !!simData.customRoads);
+const trackRes = await fetch("http://127.0.0.1:3000/api/tracking?limit=5");
+const trackData = await trackRes.json();
+console.log("tracking records", trackData.records?.length, trackData.records?.[0]?.carId);
+const tickRes = await fetch("http://127.0.0.1:3000/api/simulation/tick", {method:"POST"});
+const tickData = await tickRes.json();
+console.log("tick cars", tickData.carsList?.length, tickData.carsGeoJSON?.features?.length, tickData.carsList?.map(c=>c.carId).slice(0,5));

@@ -1,0 +1,34 @@
+# Second projet Android (ne pas publier)
+androidclaude/
+
+# Deps / build Next.js
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Secrets / local
+.env
+.env*.local
+*.pem
+*.key
+
+# Sauvegarde locale migrations
+drizzle.bak/
+
+# Builds Android / Gradle
+**/build/
+.gradle/
+local.properties
+*.apk
+*.aab
+captures/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/*

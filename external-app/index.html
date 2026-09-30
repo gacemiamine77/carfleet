@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><title>App externe - Flotte OSM</title>
+<style>body{font-family:system-ui;padding:16px;max-width:900px;margin:auto}input,select{padding:6px;border:1px solid #ccc;border-radius:6px;width:100%}button{padding:8px 12px;border-radius:6px;border:0;color:#fff;font-weight:600;cursor:pointer} .ok{color:green} .err{color:red;font-weight:700} .REQ{color:#1d4ed8} #log{height:300px;overflow:auto;background:#111;color:#eee;padding:8px;border-radius:8px;font-family:monospace;font-size:11px} #log .ok{color:#4ade80} #log .err{color:#f87171} #log .REQ{color:#93c5fd} .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px} .card{border:1px solid #ddd;border-radius:8px;padding:10px;background:#fff}</style>
+</head>
+<body>
+<h2>🚗 App externe — Flotte OSM (itinéraires réels)</h2>
+<p>Départ/Arrivée → géocodage <b>OSM Nominatim</b> → route <b>OSRM (données OSM)</b> → envoi position chaque X sec.</p>
+<label>URL plateforme <input id="url" value="http://192.168.0.2:3000"></label><br>
+<label>Intervalle (s) <input id="interval" type="number" value="2" min="1" max="10"></label><br>
+<label>Nombre de véhicules <input id="numCars" type="number" value="5" min="1" max="20"></label><br>
+<div id="vehicules"></div>
+<button id="gen" style="background:#3b82f6;margin:8px 0">🔧 Générer 5 véhicules exemple</button>
+<button id="start" style="background:#059669">▶️ Start OSM</button>
+<button id="stop" style="background:#dc2626;display:none">⏹️ Stop</button>
+<p id="status"></p>
+<pre id="log"></pre>
+<script>
+let timer=null, cars=[], session="external-"+Date.now(), tickCount=0;
+const MARQUES=[{marque:"Renault",modeles:["Symbol","Clio","Megane","Duster","Kangoo"]},{marque:"Peugeot",modeles:["208","301","308","Partner","Expert"]},{marque:"Hyundai",modeles:["Accent","i10","i20","Tucson","H1"]},{marque:"Toyota",modeles:["Yaris","Corolla","Hilux","Hiace","Land Cruiser"]},{marque:"Volkswagen",modeles:["Polo","Golf","Caddy","Transporter"]},{marque:"Dacia",modeles:["Logan","Sandero","Dokker","Duster"]},{marque:"Kia",modeles:["Picanto","Rio","Sportage","Carnival"]},{marque:"Seat",modeles:["Ibiza","Leon","Arona"]},{marque:"Chevrolet",modeles:["Aveo","Cruze","Spark"]},{marque:"Fiat",modeles:["Punto","Tipo","Doblo","Ducato"]}];
+const LOCALITES=["Adrar Centre","Timimoun","Reggane","Chlef Centre","Tenes","Laghouat Centre","Aflou","Hassi R'Mel","Oum El Bouaghi Centre","Ain Beida","Batna Centre","Barika","Bejaia Centre","Akbou","Biskra Centre","Tolga","Bechar Centre","Kenadsa","Blida Centre","Boufarik","Bouira Centre","Lakhdaria","Tamanrasset Centre","In Salah","Tebessa Centre","Bir El Ater","Tlemcen Centre","Maghnia","Tiaret Centre","Sougueur","Tizi Ouzou Centre","Azazga","Alger Centre","Bab El Oued","El Harrach","Djelfa Centre","Hassi Bahbah","Jijel Centre","Taher","Setif Centre","El Eulma","Saida Centre","Youb","Skikda Centre","Azzaba","Sidi Bel Abbes Centre","Telagh","Annaba Centre","El Hadjar","Guelma Centre","Oued Zenati","Constantine Centre","Ali Mendjeli","Medea Centre","Berrouaghia","Mostaganem Centre","Ain Tédelès","M'Sila Centre","Bou Saada","Mascara Centre","Sig","Ouargla Centre","Hassi Messaoud","Oran Centre","Es Senia","El Bayadh Centre","Brezina","Illizi Centre","Djanet","Bordj Bou Arreridj Centre","Ras El Oued","Boumerdes Centre","Thenia","El Tarf Centre","Besbes","Tindouf Centre","Tissemsilt Centre","Theniet El Had","El Oued Centre","Guemar","Khenchela Centre","Kais","Souk Ahras Centre","Sedrata","Tipaza Centre","Cherchell","Mila Centre","Ferdjioua","Ain Defla Centre","Khemis Miliana","Naama Centre","Mecheria","Ain Temouchent Centre","Beni Saf","Ghardaia Centre","Berriane","Relizane Centre","Oued Rhiou","Bordj Badji Mokhtar","Ouled Djellal","Beni Abbes","In Guezzam","Touggourt","El M'Ghair","El Meniaa"];
+const OSRM_ENDPOINTS=["https://router.project-osrm.org","https://routing.openstreetmap.de/routed-car","https://osrm.cherrycache.org"];
+const geoCache={};
+function log(m, cls=""){ const el=document.createElement("div"); el.textContent=new Date().toLocaleTimeString()+" ["+cls+"] "+m; if(cls) el.className=cls; const box=document.getElementById("log"); box.prepend(el); while(box.children.length>200) box.lastChild.remove(); }
+function havKm(a,b,c,d){ const R=6371,t=Math.PI/180; const s1=Math.sin((c-a)*t/2),s2=Math.sin((d-b)*t/2); const h=s1*s1+Math.cos(a*t)*Math.cos(c*t)*s2*s2; return 2*R*Math.asin(Math.sqrt(h)); }
+function bearing(a,b,c,d){ const t=Math.PI/180, dl=(d-b)*t; const y=Math.sin(dl)*Math.cos(c*t); const x=Math.cos(a*t)*Math.sin(c*t)-Math.sin(a*t)*Math.cos(c*t)*Math.cos(dl); return (Math.atan2(y,x)*180/Math.PI+360)%360; }
+async function geocodeOSM(name){
+  if(geoCache[name]) return geoCache[name];
+  const q=encodeURIComponent(name+", Algérie");
+  const url="https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=dz&q="+q;
+  const r=await fetch(url,{headers:{"Accept":"application/json"}});
+  const j=await r.json();
+  if(!j.length) throw new Error("Nominatim vide pour "+name);
+  const p={lat:parseFloat(j[0].lat), lon:parseFloat(j[0].lon)};
+  geoCache[name]=p; return p;
+}
+async function fetchOSRM(o,d){
+  for(const base of OSRM_ENDPOINTS){
+    try{
+      const url=base+"/route/v1/driving/"+o.lon+","+o.lat+";"+d.lon+","+d.lat+"?overview=full&geometries=geojson&steps=false";
+      const r=await fetch(url); const j=await r.json();
+      if(j.code==="Ok"&&j.routes&&j.routes[0]&&j.routes[0].geometry.coordinates.length>=2){
+        return j.routes[0].geometry.coordinates.map(c=>({lat:c[1],lon:c[0]}));
+      }
+    }catch(e){ continue; }
+  }
+  return [];
+}
+function genVehicules(n){
+  const container=document.getElementById("vehicules"); container.innerHTML="";
+  for(let i=0;i<n;i++){
+    const carId="EXT-"+(i+1);
+    const marqueInfo=MARQUES[Math.floor(Math.random()*MARQUES.length)];
+    const o=LOCALITES[Math.floor(Math.random()*LOCALITES.length)];
+    let d=LOCALITES[Math.floor(Math.random()*LOCALITES.length)]; if(d===o) d=LOCALITES[(LOCALITES.indexOf(o)+10)%LOCALITES.length];
+    const div=document.createElement("div"); div.className="card"; div.innerHTML=
+      "<b>"+carId+"</b> <span style='font-size:11px;color:#888'>(compte #"+(i+1)+")</span><div class='grid'>"+
+      "<label>Propriétaire<input data-k='proprietaireNom' value='Prop "+(i+1)+"'></label>"+
+      "<label>Conducteur<input data-k='conducteurNom' value='Cond "+(i+1)+"'></label>"+
+      "<label>Marque<select data-k='marque'>"+MARQUES.map(m=>"<option value='"+m.marque+"' "+(m.marque===marqueInfo.marque?"selected":"")+">"+m.marque+"</option>").join("")+"</select></label>"+
+      "<label>Modèle<select data-k='modele'>"+marqueInfo.modeles.map(m=>"<option>"+m+"</option>").join("")+"</select></label>"+
+      "<label>Immat<input data-k='immatriculation' value='EXT-"+(100+i)+"'></label>"+
+      "<label>Catégorie<select data-k='categorieVehicule'><option>leger</option><option>lourd</option><option>transport</option><option>transport_dangereux</option></select></label>"+
+      "<label>Hauteur m<input data-k='hauteur' type='number' step='0.1' value='"+(1.5+Math.random()*1).toFixed(2)+"'></label>"+
+      "<label>Largeur m<input data-k='largeur' type='number' step='0.1' value='"+(1.7+Math.random()*0.5).toFixed(2)+"'></label>"+
+      "<label>Départ (OSM)<select data-k='originName'>"+LOCALITES.map(l=>"<option "+(l===o?"selected":"")+">"+l+"</option>").join("")+"</select></label>"+
+      "<label>Arrivée (OSM)<select data-k='destName'>"+LOCALITES.map(l=>"<option "+(l===d?"selected":"")+">"+l+"</option>").join("")+"</select></label>"+
+      "</div>";
+    container.appendChild(div);
+  }
+  container.querySelectorAll('select[data-k="marque"]').forEach(sel=>{
+    sel.addEventListener('change', e=>{
+      const info=MARQUES.find(m=>m.marque===e.target.value);
+      e.target.closest('.card').querySelector('select[data-k="modele"]').innerHTML=info.modeles.map(m=>"<option>"+m+"</option>").join("");
+    });
+  });
+}
+function collectVehicules(){
+  const out=[];
+  document.querySelectorAll("#vehicules .card").forEach((card,i)=>{
+    const get=k=>card.querySelector('[data-k="'+k+'"]')?.value;
+    out.push({carId:"EXT-"+(i+1), proprietaireNom:get("proprietaireNom"), conducteurNom:get("conducteurNom"),
+      marque:get("marque"), modele:get("modele"), immatriculation:get("immatriculation"),
+      categorieVehicule:get("categorieVehicule"), hauteur:get("hauteur"), largeur:get("largeur"),
+      originName:get("originName"), destName:get("destName"),
+      lat:36.75, lon:3.04, heading:0, _route:null, _idx:0, _o:null, _d:null});
+  });
+  return out;
+}
+document.getElementById("gen").onclick=()=>{ genVehicules(parseInt(document.getElementById("numCars").value)||5); log("GEN","générés "+document.querySelectorAll('#vehicules .card').length+" véhicules"); };
+genVehicules(5);
+document.getElementById("start").onclick=async ()=>{
+  const base=document.getElementById("url").value.replace(/\/$/,"");
+  const interval=parseFloat(document.getElementById("interval").value)||2;
+  const endpoint=base+"/api/external/track";
+  document.getElementById("start").style.display="none";
+  document.getElementById("stop").style.display="inline-block";
+  document.getElementById("status").textContent="Envoi OSM vers "+endpoint;
+  cars=collectVehicules(); tickCount=0;
+  log("Init","Init "+cars.length+" véhicules -> "+endpoint);
+  // 1. Géocodage OSM + route OSRM par véhicule
+  for(const c of cars){
+    try{
+      log("REQ","["+c.carId+"] géocodage OSM "+c.originName+" -> "+c.destName);
+      const [o,d]=await Promise.all([geocodeOSM(c.originName),geocodeOSM(c.destName)]);
+      c._o=o; c._d=d;
+      log("REQ","["+c.carId+"] OSRM route "+o.lat.toFixed(4)+","+o.lon.toFixed(4)+" -> "+d.lat.toFixed(4)+","+d.lon.toFixed(4));
+      const pts=await fetchOSRM(o,d);
+      if(pts.length>=2){ c._route=pts; c._idx=0; c.lat=pts[0].lat; c.lon=pts[0].lon; log("ok","["+c.carId+"] OSM route OK "+pts.length+" pts"); }
+      else{ c._route=null; c.lat=o.lat; c.lon=o.lon; log("err","["+c.carId+"] OSRM vide, départ fixe OSM"); }
+    }catch(e){ log("err","["+c.carId+"] OSM fail "+e.message); c._route=null; }
+  }
+  async function tick(){
+    tickCount++;
+    const payload=cars.map(c=>{
+      let speed=40+Math.random()*20, heading=c.heading||0;
+      if(c._route&&c._route.length>=2){
+        let remaining=speed*interval/3.6/1000; // km par tick
+        let guard=0;
+        while(remaining>0&&guard++<20){
+          const cur={lat:c.lat,lon:c.lon};
+          const nxt=c._route[Math.min(c._idx+1,c._route.length-1)];
+          const seg=havKm(cur.lat,cur.lon,nxt.lat,nxt.lon);
+          heading=bearing(cur.lat,cur.lon,nxt.lat,nxt.lon);
+          if(seg<=remaining||seg<1e-6){ c.lat=nxt.lat; c.lon=nxt.lon; c._idx++; remaining-=seg;
+            if(c._idx>=c._route.length-1){ c._route.reverse(); c._idx=0; log("REQ","["+c.carId+"] arrivée, demi-tour (retour OSM)"); break; }
+          } else { const f=remaining/seg; c.lat=cur.lat+(nxt.lat-cur.lat)*f; c.lon=cur.lon+(nxt.lon-cur.lon)*f; remaining=0; }
+        }
+      } else {
+        speed=20+Math.random()*50; heading=(c.heading+(Math.random()-0.5)*30+360)%360;
+        const dd=(speed*interval/3600)/111;
+        c.lat+=Math.cos(heading*Math.PI/180)*dd*0.7;
+        c.lon+=Math.sin(heading*Math.PI/180)*dd*0.7;
+        c.lat=Math.max(32.5,Math.min(37.5,c.lat)); c.lon=Math.max(-2.5,Math.min(9.0,c.lon));
+      }
+      c.heading=heading;
+      return {carId:c.carId, lat:+c.lat.toFixed(5), lon:+c.lon.toFixed(5), speed:+speed.toFixed(1), heading:Math.round(heading),
+        marque:c.marque, modele:c.modele, immatriculation:c.immatriculation, categorieVehicule:c.categorieVehicule, hauteur:c.hauteur, largeur:c.largeur,
+        proprietaireNom:c.proprietaireNom, conducteurNom:c.conducteurNom,
+        origin:c._o||undefined, destination:c._d||undefined, originName:c.originName, destName:c.destName};
+    });
+    const body=JSON.stringify({cars:payload, sessionId:session});
+    log("REQ","#"+tickCount+" POST "+endpoint+" | "+payload.length+" voitures OSM | "+payload.slice(0,3).map(p=>p.carId+" "+p.lat+","+p.lon).join(" ; ")+(payload.length>3?" ...":""));
+    try{ const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body}); const t=await r.text(); log(r.ok?"ok":"err","#"+tickCount+" <- "+r.status+" "+t.slice(0,150)); }
+    catch(e){ log("err","#"+tickCount+" ERREUR fetch "+e.message); }
+  }
+  timer=setInterval(tick, interval*1000); tick();
+};
+document.getElementById("stop").onclick=()=>{ clearInterval(timer); timer=null; document.getElementById("start").style.display="inline-block"; document.getElementById("stop").style.display="none"; log("STOP","Arrêt"); };
+</script>
+</body>
+</html>
