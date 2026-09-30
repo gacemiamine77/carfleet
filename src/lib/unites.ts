@@ -86,14 +86,19 @@ export async function ensureUnitesSeed(): Promise<void> {
   }
 }
 
-// Envoie les infractions mémoire vers les unités (persist + dispatch wilaya)
+// Envoie les infractions mémoire vers les unités (persist + dispatch wilaya).
+// Appelé à chaque tick : on ne traite que les NOUVELLES (sinon N requêtes × latence Neon à chaque tick → freeze).
+const dispatchedIds = new Set<string>();
 export async function dispatchInfractions(infractions: (SpeedInfraction & { categorieVehicule?: string })[]): Promise<{ inserted: number }> {
-  if (!infractions.length) return { inserted: 0 };
+  const fresh = infractions.filter((i) => !dispatchedIds.has(i.id));
+  if (!fresh.length) return { inserted: 0 };
+  if (dispatchedIds.size > 20000) dispatchedIds.clear();
   await ensureUnitesSeed();
   let inserted = 0;
-  for (const inf of infractions) {
+  for (const inf of fresh) {
     try {
       const already = await db.select({ id: infractionsConstatees.id }).from(infractionsConstatees).where(eq(infractionsConstatees.externalId, inf.id)).limit(1);
+      dispatchedIds.add(inf.id);
       if (already.length) continue;
       const { code, name } = resolveWilayaForPosition(inf.lat, inf.lon);
       // Catégorie véhicule depuis mémoire ou DB

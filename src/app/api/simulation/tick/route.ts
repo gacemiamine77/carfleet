@@ -94,7 +94,7 @@ export async function POST() {
     ),
     bufferStats,
     totalRecordsSentToDb: state.totalRecordsSent,
-    infractions: [...state.infractions].sort((a,b)=> new Date(b.recordedAt).getTime()-new Date(a.recordedAt).getTime()),
+    infractions: [...state.infractions].sort((a,b)=> new Date(b.recordedAt).getTime()-new Date(a.recordedAt).getTime()).slice(0, 300),
     infractionsCount: state.infractions.length,
     unitesDispatched: dispatched,
   });

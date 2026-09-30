@@ -1,12 +1,14 @@
--- Rétention historique footprints sur Neon (à coller dans l'éditeur SQL Neon, UNE fois).
--- Purge quotidienne du brut > 30 jours. Nécessite les extensions postgis + pg_cron
--- (la migration 0001 crée déjà postgis ; pg_cron est géré ici).
+-- Rétention historique footprints sur Neon (purge quotidienne du brut > 30 jours).
 -- Les positions temps réel (vehicle_current_position) ne sont JAMAIS purgées.
+--
+-- ÉTAPE 1 — éditeur SQL Neon, base `postgres` : activer pg_cron
+--   (Neon n'autorise CREATE EXTENSION pg_cron que dans la base postgres)
+--
+--   CREATE EXTENSION IF NOT EXISTS pg_cron;
+--
+-- ÉTAPE 2 — éditeur SQL Neon, base `carfleetDB` : fonction de purge
+--   (par lots de 5000, utilise l'index BRIN sur recorded_at)
 
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-
--- Fonction de purge (par lots de 5000, utilise l'index BRIN sur recorded_at)
 CREATE OR REPLACE FUNCTION purge_old_footprints(retention_days int DEFAULT 30)
 RETURNS bigint AS $$
 DECLARE
@@ -26,10 +28,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Planification quotidienne à 03:00 UTC (remplace le job s'il existe déjà)
-SELECT cron.unschedule('purge-footprints-30d');
-SELECT cron.schedule('purge-footprints-30d', '0 3 * * *', $$SELECT purge_old_footprints(30)$$);
-
--- Vérification :
--- SELECT * FROM cron.job;
--- SELECT purge_old_footprints(30);  -- test manuel (retourne le nb supprimé)
+-- ÉTAPE 3 — éditeur SQL Neon, base `postgres` : planifier dans carfleetDB
+--
+--   SELECT cron.unschedule('purge-footprints-30d');
+--   SELECT cron.schedule_in_database(
+--     'purge-footprints-30d', '0 3 * * *',
+--     $$SELECT purge_old_footprints(30)$$, 'carfleetDB'
+--   );
+--
+-- Vérifications (base postgres) :
+--   SELECT jobname, schedule, database, active FROM cron.job;
+-- Test manuel (base carfleetDB) : SELECT purge_old_footprints(30);
