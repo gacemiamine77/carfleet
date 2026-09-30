@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { footprints, voitures, itineraires, conducteurs, proprietaires, simulationSessions } from "@/db/schema";
+import { footprints, voitures, itineraires, conducteurs, proprietaires, simulationSessions, vehicleCurrentPosition } from "@/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
-// POST - receive external tracking data (from other computer)
-// Body: { carId, lat, lon, speed?, heading?, sessionId? } or { cars: [...] }
+// POST - receive external tracking data (GPS devices, other computer)
+// Body: { carId|vehicle_id, lat, lon, speed?, heading?, fuel?, recordedAt|timestamp?, sessionId? } ou { cars: [...] }
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const cars = Array.isArray(body.cars) ? body.cars : [body];
-    if (!cars.length || !cars[0].carId || cars[0].lat == null) {
-      return NextResponse.json({ error: "carId, lat, lon requis (ou {cars:[...]})" }, { status: 400 });
+    if (!cars.length || !(cars[0].carId || cars[0].vehicle_id) || cars[0].lat == null) {
+      return NextResponse.json({ error: "carId (ou vehicle_id), lat, lon requis (ou {cars:[...]})" }, { status: 400 });
     }
 
     // Ensure a session exists for external data
@@ -34,9 +34,15 @@ export async function POST(req: NextRequest) {
     lon: Math.max(-2.5, Math.min(9.0, lon)),
   });
   for (const c of cars) {
-    const carId = String(c.carId || `EXT-${Math.random().toString(36).slice(2,6)}`);
+    const carId = String(c.carId || c.vehicle_id || `EXT-${Math.random().toString(36).slice(2,6)}`);
     let lat = Number(c.lat), lon = Number(c.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    // Aliases payload GPS : fuel (% réservoir), recordedAt/timestamp
+    const fuelRaw = c.fuel ?? c.carburant;
+    const fuel = fuelRaw == null ? null : Number(fuelRaw);
+    const tsRaw = c.recordedAt || c.timestamp;
+    let recAt = tsRaw ? new Date(tsRaw) : new Date();
+    if (isNaN(recAt.getTime())) recAt = new Date();
     const cl = clamp(lat, lon);
     lat = cl.lat; lon = cl.lon;
     // Champs enrichis depuis l'app externe (tout ce qu'a la plateforme)
@@ -138,13 +144,32 @@ export async function POST(req: NextRequest) {
         itineraireId: itinId,
         voitureId,
         latitude: lat, longitude: lon, altitude: 0,
+        geog: { lon, lat } as any,
         vitesse: Number(c.speed ?? 30 + Math.random()*40),
         acceleration: 0, cap: Number(c.heading ?? Math.random()*360),
+        carburant: Number.isFinite(fuel as number) ? (fuel as number) : null,
         distanceCumulee: 0,
-        recordedAt: c.recordedAt ? new Date(c.recordedAt) : new Date(),
+        recordedAt: recAt,
         deltaSecondes: 2, statut: "en route", estInterruption: false,
       });
       inserted++;
+      // Temps réel : 1 ligne/véhicule (lue par carte opérateur + apps, jamais footprints en direct)
+      try {
+        await db.insert(vehicleCurrentPosition).values({
+          voitureId, carId, latitude: lat, longitude: lon,
+          vitesse: Number(c.speed ?? 30), cap: Number(c.heading ?? 0),
+          carburant: Number.isFinite(fuel as number) ? (fuel as number) : null,
+          itineraireId: itinId, recordedAt: recAt, updatedAt: new Date(),
+        }).onConflictDoUpdate({
+          target: vehicleCurrentPosition.voitureId,
+          set: {
+            latitude: lat, longitude: lon,
+            vitesse: Number(c.speed ?? 30), cap: Number(c.heading ?? 0),
+            carburant: Number.isFinite(fuel as number) ? (fuel as number) : null,
+            itineraireId: itinId, recordedAt: recAt, updatedAt: new Date(),
+          },
+        });
+      } catch {}
       try {
         const { getSimulation } = await import("@/lib/simulationManager");
         const sim = getSimulation();
@@ -232,7 +257,7 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true, usage: "POST {carId, lat, lon, speed?, heading?} ou {cars:[...], sessionId?} vers /api/external/track" }, {
+  return NextResponse.json({ ok: true, usage: "POST {carId|vehicle_id, lat, lon, speed?, heading?, fuel?, recordedAt|timestamp?} ou {cars:[...], sessionId?} vers /api/external/track" }, {
     headers: { "Access-Control-Allow-Origin": "*" },
   });
 }

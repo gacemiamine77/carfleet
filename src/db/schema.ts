@@ -9,8 +9,22 @@ import {
   date,
   boolean,
   pgEnum,
+  customType,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+
+// Colonne PostGIS geography(Point,4326) — nécessite CREATE EXTENSION postgis
+// (migration : extension créée avant la table). Source de vérité = lat/lon,
+// geog sert aux calculs géospatiaux (ST_DWithin, ST_Length…).
+export const geographyPoint = customType<{ data: { lon: number; lat: number }; driverData: string }>({
+  dataType() {
+    return "geography(Point,4326)";
+  },
+  toDriver(value: { lon: number; lat: number }) {
+    return `SRID=4326;POINT(${value.lon} ${value.lat})`;
+  },
+});
 
 // Enum for owner type (physical person or company)
 export const ownerTypeEnum = pgEnum("owner_type", ["physique", "morale"]);
@@ -121,32 +135,57 @@ export const itineraires = pgTable("itineraires", {
 });
 
 // ─── FOOTPRINT / TRACKING POINTS ────────────────────────────────
-// Chaque point enregistré avec position et métriques
+// Chaque point enregistré avec position et métriques.
+// Volume (1000 vh × 10 s ≈ 8,6 M/jour) : brut purgé au-delà de la rétention
+// (voir /api/admin/retention + retention-neon.sql), lecture temps réel via
+// vehicle_current_position, index BRIN sur recordedAt + GiST sur geog.
 export const footprints = pgTable("footprints", {
   id: serial("id").primaryKey(),
   itineraireId: integer("itineraire_id").notNull().references(() => itineraires.id),
   voitureId: integer("voiture_id").notNull().references(() => voitures.id),
-  
+
   // Position GPS
   latitude: doublePrecision("latitude").notNull(),
   longitude: doublePrecision("longitude").notNull(),
   altitude: doublePrecision("altitude").default(0),
-  
+  // Miroir PostGIS (rempli à l'insertion, NULL pour l'ancien historique)
+  geog: geographyPoint("geog"),
+
   // Métriques
   vitesse: doublePrecision("vitesse").notNull(), // km/h
   acceleration: doublePrecision("acceleration").notNull(), // km/h/s
   cap: doublePrecision("cap").notNull(), // heading en degrés
+  carburant: doublePrecision("carburant"), // % réservoir (payload GPS fuel)
   distanceCumulee: doublePrecision("distance_cumulee").default(0), // mètres depuis début itinéraire
-  
+
   // Temps
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
-  
+
   // Durée depuis dernier point (pour détecter interruptions)
   deltaSecondes: integer("delta_secondes"),
-  
+
   // État
   statut: varchar("statut", { length: 16 }).notNull().default("moving"), // moving, stopped, idle
   estInterruption: boolean("est_interruption").default(false),
+}, (t) => [
+  index("footprints_recorded_brin").using("brin", t.recordedAt),
+  index("footprints_geog_gist").using("gist", t.geog),
+  index("footprints_voiture_time").on(t.voitureId, t.recordedAt),
+]);
+
+// ─── POSITION TEMPS REEL (1 ligne/véhicule, upsert à chaque message GPS) ────
+// C'est CETTE table que lisent la carte opérateur et les apps (jamais footprints en direct).
+export const vehicleCurrentPosition = pgTable("vehicle_current_position", {
+  voitureId: integer("voiture_id").primaryKey().references(() => voitures.id),
+  carId: varchar("car_id", { length: 64 }).notNull(),
+  latitude: doublePrecision("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
+  vitesse: doublePrecision("vitesse"),
+  cap: doublePrecision("cap"),
+  carburant: doublePrecision("carburant"),
+  itineraireId: integer("itineraire_id").references(() => itineraires.id),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 // ─── UNITES DE SECURITE ROUTIERE (Police / Gendarmerie) ─────────

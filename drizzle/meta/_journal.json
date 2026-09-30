@@ -8,6 +8,13 @@
       "when": 1790751201086,
       "tag": "0000_init-full-schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790777836149,
+      "tag": "0001_realtime-retention-postgis",
+      "breakpoints": true
     }
   ]
 }

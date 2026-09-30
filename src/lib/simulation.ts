@@ -51,6 +51,7 @@ export interface CarState {
   currentRoadBearing?: number | null;
   continuousDrivingSec: number;
   lastInfractionLongDriveAt?: number;
+  carburant?: number | null; // % réservoir remonté par GPS (external/track), null si inconnu
   footprintTrail: { lat: number; lon: number; speed: number; time: Date }[];
 }
 
