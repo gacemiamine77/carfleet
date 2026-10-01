@@ -140,7 +140,8 @@ export default function Home() {
 
   useEffect(() => {
     if (activeTab !== "unites") return;
-    fetch("/api/unites/geojson").then(r=>r.json()).then(d=> setUnites(d.features || [])).catch(()=> setUnites([]));
+    // Unités lues depuis la table unites_securite (pas du GeoJSON)
+    fetch("/api/unites").then(r=>r.json()).then(d=> setUnites(d.unites || [])).catch(()=> setUnites([]));
     fetch("/api/unites/comptes").then(r=>r.json()).then(d=> setComptes(d.comptes || [])).catch(()=> setComptes([]));
   }, [activeTab]);
 
@@ -505,6 +506,7 @@ export default function Home() {
           <h3 className="font-bold text-sm mb-2">🚓 Forces de sécurité — chargement GeoJSON</h3>
           <p className="text-xs text-gray-500 mb-3">Uploadez un <code>FeatureCollection</code> de <code>Point [lon,lat]</code> : <code>code, nom, type (police|gendarmerie), moyen (barrage_fixe|barrage_mobile|motards|vehicule_mobile|poste_fixe), codeWilaya, wilaya, telephone</code>. Les unités sont positionnées sur les routes et visibles dans l’app unités.</p>
           <div className="flex gap-2 mb-3 flex-wrap">
+            <button onClick={async ()=>{ await fetch("/api/unites").then(r=>r.json()).then(d=> setUnites(d.unites || [])); setLastFlushMsg(`🔄 Unités rechargées depuis la base (${unites.length})`); }} className="text-xs bg-white border px-3 py-1.5 rounded hover:bg-blue-50">🔄 Recharger depuis la base</button>
             <label className="flex-1 min-w-[220px] flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed border-blue-300 rounded-lg cursor-pointer hover:bg-blue-50">
               <span>📁</span><span className="text-xs font-medium">Charger GeoJSON unités</span>
               <input type="file" accept=".geojson,.json" className="hidden" onChange={async e=>{
@@ -513,7 +515,7 @@ export default function Home() {
                   const text=await file.text(); const gj=JSON.parse(text);
                   const res=await fetch("/api/unites/upload",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(gj)});
                   const data=await res.json();
-                  if(data.ok){ setLastFlushMsg(`✅ Unités : ${data.inserted} ajoutées, ${data.updated} mises à jour (${data.received} reçues)`); fetch("/api/unites/geojson").then(r=>r.json()).then(d=> setUnites(d.features||[])); }
+                  if(data.ok){ setLastFlushMsg(`✅ Unités : ${data.inserted} ajoutées, ${data.updated} mises à jour (${data.received} reçues)`); fetch("/api/unites").then(r=>r.json()).then(d=> setUnites(d.unites||[])); }
                   else setLastFlushMsg(data.error||"Erreur");
                 } catch { setLastFlushMsg("❌ GeoJSON illisible"); }
                 e.target.value="";
@@ -530,7 +532,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
             <select value={cWilaya} onChange={e=>{setCWilaya(e.target.value); setCUnite("");}} className="text-xs border rounded px-2 py-1.5">
               <option value="">Wilaya…</option>
-              {[...new Map(unites.map((f:any)=>[f.properties?.codeWilaya, f.properties?.wilaya])).entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([c,n]:any)=><option key={c} value={c}>{c} - {n}</option>)}
+              {[...new Map(unites.map((f:any)=>[f.codeWilaya, f.wilaya])).entries()].sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([c,n]:any)=><option key={c} value={c}>{c} - {n}</option>)}
             </select>
             <select value={cCorps} onChange={e=>{setCCorps(e.target.value); setCUnite("");}} className="text-xs border rounded px-2 py-1.5">
               <option value="">Corps…</option>
@@ -547,7 +549,7 @@ export default function Home() {
             </select>
             <select value={cUnite} onChange={e=>setCUnite(e.target.value)} className="text-xs border rounded px-2 py-1.5">
               <option value="">Unité…</option>
-              {unites.filter((f:any)=>(!cWilaya||f.properties?.codeWilaya===cWilaya)&&(!cCorps||f.properties?.type===cCorps)&&(!cMoyen||f.properties?.moyen===cMoyen)).slice(0,200).map((f:any)=><option key={f.properties?.code} value={f.properties?.code}>{f.properties?.code} — {f.properties?.nom}</option>)}
+              {unites.filter((f:any)=>(!cWilaya||f.codeWilaya===cWilaya)&&(!cCorps||f.type===cCorps)&&(!cMoyen||f.moyen===cMoyen)).slice(0,200).map((f:any)=><option key={f.code} value={f.code}>{f.code} — {f.nom}</option>)}
             </select>
             <input value={cUser} onChange={e=>setCUser(e.target.value)} placeholder="Nom d'utilisateur" className="text-xs border rounded px-2 py-1.5" />
             <input value={cPass} onChange={e=>setCPass(e.target.value)} placeholder="Mot de passe (6+)" type="password" className="text-xs border rounded px-2 py-1.5" />
@@ -591,8 +593,8 @@ export default function Home() {
         </div>
         <div className="bg-white rounded-xl shadow border overflow-hidden">
           <div className="px-4 py-2 bg-blue-50 border-b flex items-center justify-between">
-            <h4 className="font-bold text-sm">📋 Unités — {unites.length}</h4>
-            <span className="text-xs bg-white border px-2 py-0.5 rounded">{unites.filter((f:any)=>f.properties?.type==="police").length} police • {unites.filter((f:any)=>f.properties?.type==="gendarmerie").length} gendarmerie</span>
+            <h4 className="font-bold text-sm">📋 Unités (base) — {unites.length}</h4>
+            <span className="text-xs bg-white border px-2 py-0.5 rounded">{unites.filter((f:any)=>f.type==="police").length} police • {unites.filter((f:any)=>f.type==="gendarmerie").length} gendarmerie</span>
           </div>
           <div className="max-h-[50vh] overflow-auto">
             <table className="w-full text-xs">
@@ -602,15 +604,15 @@ export default function Home() {
               <tbody>
                 {unites.length===0 ? (
                   <tr><td colSpan={7} className="text-center py-8 text-gray-400">Aucune unité — uploadez un GeoJSON ou actualisez</td></tr>
-                ) : unites.map((f:any,i:number)=>(
-                  <tr key={i} className="border-t hover:bg-blue-50">
-                    <td className="px-3 py-1 font-mono">{f.properties?.code}</td>
-                    <td className="px-3 py-1">{f.properties?.nom}</td>
-                    <td className="px-3 py-1">{f.properties?.type==="police" ? "🚓 Police" : "🪖 Gendarmerie"}</td>
-                    <td className="px-3 py-1">{f.properties?.moyen}</td>
-                    <td className="px-3 py-1">{f.properties?.codeWilaya} - {f.properties?.wilaya}</td>
-                    <td className="px-3 py-1 font-mono text-[11px]">{f.geometry?.coordinates?.[1]?.toFixed(4)}, {f.geometry?.coordinates?.[0]?.toFixed(4)}</td>
-                    <td className="px-3 py-1">{f.properties?.telephone || "—"}</td>
+                ) : unites.map((f:any)=>(
+                  <tr key={f.id || f.code} className="border-t hover:bg-blue-50">
+                    <td className="px-3 py-1 font-mono">{f.code}</td>
+                    <td className="px-3 py-1">{f.nom}</td>
+                    <td className="px-3 py-1">{f.type==="police" ? "🚓 Police" : "🪖 Gendarmerie"}</td>
+                    <td className="px-3 py-1">{f.moyen}</td>
+                    <td className="px-3 py-1">{f.codeWilaya} - {f.wilaya}</td>
+                    <td className="px-3 py-1 font-mono text-[11px]">{f.latitude?.toFixed(4)}, {f.longitude?.toFixed(4)}</td>
+                    <td className="px-3 py-1">{f.telephone || "—"}</td>
                   </tr>
                 ))}
               </tbody>
