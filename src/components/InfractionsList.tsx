@@ -17,28 +17,104 @@ interface Props {
   onClear?: () => void;
 }
 
+function ModeToggle({ showBase, setShowBase, loading, onRefresh }: { showBase: boolean; setShowBase: (v: boolean) => void; loading: boolean; onRefresh: () => void }) {
+  return (
+    <div className="flex gap-1 items-center">
+      <button onClick={() => setShowBase(false)} title="Infractions de la simulation en cours (mémoire, effacées à chaque Préparer)"
+        className={`text-xs px-2 py-1 rounded border ${!showBase ? "bg-red-600 text-white border-red-600" : "bg-white hover:bg-red-50"}`}>▶️ Session</button>
+      <button onClick={() => setShowBase(true)} title="Toutes les infractions persistées en base (jamais effacées)"
+        className={`text-xs px-2 py-1 rounded border ${showBase ? "bg-red-600 text-white border-red-600" : "bg-white hover:bg-red-50"}`}>🗄️ Historique</button>
+      {showBase && <button onClick={onRefresh} title="Recharger l'historique" className="text-xs bg-white border px-2 py-1 rounded hover:bg-red-50">{loading ? "⏳" : "🔄"}</button>}
+    </div>
+  );
+}
+
+function matchNom(i: { immatriculation?: string; carId?: string; conducteurNom?: string }, q: string): boolean {
+  return (i.immatriculation || "").toLowerCase().includes(q) ||
+    (i.carId || "").toLowerCase().includes(q) ||
+    (i.conducteurNom || "").toLowerCase().includes(q);
+}
+
 export default function InfractionsList({ infractions, onSelectCar, onClear }: Props) {
   const [filterInfraction, setFilterInfraction] = useState<string>("all");
   const [filterConducteur, setFilterConducteur] = useState<string>("all");
   const [filterStatut, setFilterStatut] = useState<string>("all");
+  const [filterPeriode, setFilterPeriode] = useState<string>("all");
+  const [filterJour, setFilterJour] = useState<string>("");
+  const [filterPlaque, setFilterPlaque] = useState<string>("");
+  const [showBase, setShowBase] = useState<boolean>(false);
+  const [baseRows, setBaseRows] = useState<Infraction[]>([]);
+  const [baseLoading, setBaseLoading] = useState<boolean>(false);
+
+  const loadBase = async () => {
+    setBaseLoading(true);
+    try {
+      const r = await fetch("/api/unites/infractions?limit=2000");
+      const d = await r.json();
+      const rows = (d.infractions || []).map((x: any) => ({
+        id: String(x.externalId || x.id), carId: x.carId || "", immatriculation: x.immatriculation || "",
+        conducteurNom: x.conducteurNom || "", roadName: x.roadName || "", troncon: x.troncon || "",
+        infraction: x.infraction, restriction: x.restriction || undefined,
+        speed: Number(x.vitesse) || 0, speedLimit: x.vitesseLimite == null ? 9999 : Number(x.vitesseLimite),
+        excess: Number(x.exces) || 0, lat: Number(x.latitude), lon: Number(x.longitude),
+        recordedAt: typeof x.recordedAt === "string" ? x.recordedAt : new Date(x.recordedAt).toISOString(),
+        itineraireId: "", statut: x.statut || "nouveau", wilaya: x.wilaya, codeWilaya: x.codeWilaya,
+      }));
+      setBaseRows(rows);
+    } catch { setBaseRows([]); }
+    setBaseLoading(false);
+  };
 
   const conducteurs = useMemo(() => [...new Set(infractions.map(i => i.conducteurNom))].sort(), [infractions]);
   const infractionsTypes = useMemo(() => [...new Set(infractions.map(i => i.infraction))].sort(), [infractions]);
 
-  const filtered = useMemo(() => infractions.filter(i =>
-    (filterInfraction === "all" || i.infraction === filterInfraction) &&
-    (filterConducteur === "all" || i.conducteurNom === filterConducteur) &&
-    (filterStatut === "all" || (i.statut || "nouveau") === filterStatut)
-  ), [infractions, filterInfraction, filterConducteur, filterStatut]);
+  const dayOf = (iso: string) => (iso || "").slice(0, 10);
+  const filtered = useMemo(() => {
+    const now = Date.now(), dayMs = 86400_000;
+    const q = filterPlaque.trim().toLowerCase();
+    return infractions.filter(i => {
+      if (filterInfraction !== "all" && i.infraction !== filterInfraction) return false;
+      if (filterConducteur !== "all" && i.conducteurNom !== filterConducteur) return false;
+      if (filterStatut !== "all" && (i.statut || "nouveau") !== filterStatut) return false;
+      if (q && !matchNom(i, q)) return false;
+      if (filterJour) { if (dayOf(i.recordedAt) !== filterJour) return false; }
+      else if (filterPeriode === "today") { if (dayOf(i.recordedAt) !== dayOf(new Date(now).toISOString())) return false; }
+      else if (filterPeriode === "7d") { if (new Date(i.recordedAt).getTime() < now - 7 * dayMs) return false; }
+      else if (filterPeriode === "30d") { if (new Date(i.recordedAt).getTime() < now - 30 * dayMs) return false; }
+      return true;
+    });
+  }, [infractions, filterInfraction, filterConducteur, filterStatut, filterPeriode, filterJour, filterPlaque]);
 
-  if (!infractions || infractions.length === 0) {
+  const source = showBase ? baseRows : infractions;
+  const conducteursSrc = useMemo(() => [...new Set(source.map(i => i.conducteurNom))].sort(), [source]);
+  const typesSrc = useMemo(() => [...new Set(source.map(i => i.infraction))].sort(), [source]);
+  const filteredSrc = useMemo(() => {
+    const now = Date.now(), dayMs = 86400_000;
+    const q = filterPlaque.trim().toLowerCase();
+    return source.filter(i => {
+      if (filterInfraction !== "all" && i.infraction !== filterInfraction) return false;
+      if (filterConducteur !== "all" && i.conducteurNom !== filterConducteur) return false;
+      if (filterStatut !== "all" && (i.statut || "nouveau") !== filterStatut) return false;
+      if (q && !matchNom(i, q)) return false;
+      if (filterJour) { if ((i.recordedAt || "").slice(0, 10) !== filterJour) return false; }
+      else if (filterPeriode === "today") { if ((i.recordedAt || "").slice(0, 10) !== new Date(now).toISOString().slice(0, 10)) return false; }
+      else if (filterPeriode === "7d") { if (new Date(i.recordedAt).getTime() < now - 7 * dayMs) return false; }
+      else if (filterPeriode === "30d") { if (new Date(i.recordedAt).getTime() < now - 30 * dayMs) return false; }
+      return true;
+    });
+  }, [source, filterInfraction, filterConducteur, filterStatut, filterPeriode, filterJour, filterPlaque]);
+
+  if (!source || source.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow p-4 border">
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-bold text-sm">🚨 Infractions</h3>
-          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">0 infraction</span>
+          <div className="flex gap-2">
+            <ModeToggle showBase={showBase} setShowBase={(v:boolean)=>{setShowBase(v); if(v) loadBase();}} loading={baseLoading} onRefresh={loadBase} />
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">0 infraction</span>
+          </div>
         </div>
-        <p className="text-xs text-gray-400">Aucune infraction détectée.</p>
+        <p className="text-xs text-gray-400">{showBase ? (baseLoading ? "⏳ Chargement de l'historique…" : "Aucune infraction en base.") : "Aucune infraction détectée."}</p>
       </div>
     );
   }
@@ -52,6 +128,15 @@ export default function InfractionsList({ infractions, onSelectCar, onClear }: P
   };
 
   const handleExport = () => {
+    if (showBase) {
+      const params = new URLSearchParams({ format: "geojson", limit: "2000" });
+      if (filterInfraction !== "all") params.set("infraction", filterInfraction);
+      if (filterStatut !== "all") params.set("statut", filterStatut);
+      if (filterPeriode !== "all") params.set("periode", filterPeriode);
+      if (filterPlaque.trim()) params.set("q", filterPlaque.trim());
+      window.open(`/api/unites/infractions?${params.toString()}`, "_blank");
+      return;
+    }
     const params = new URLSearchParams();
     if (filterInfraction !== "all") params.set("infraction", filterInfraction);
     if (filterConducteur !== "all") params.set("conducteur", filterConducteur);
@@ -63,21 +148,22 @@ export default function InfractionsList({ infractions, onSelectCar, onClear }: P
     <div className="bg-white rounded-xl shadow border overflow-hidden flex flex-col h-full">
       <div className="flex flex-col gap-2 px-4 py-2 bg-red-50 border-b flex-shrink-0">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-sm text-red-800">🚨 Infractions — {filtered.length}/{infractions.length}</h3>
-          <div className="flex gap-2">
+          <h3 className="font-bold text-sm text-red-800">🚨 Infractions — {filteredSrc.length}/{source.length}</h3>
+          <div className="flex gap-2 items-center">
+            <ModeToggle showBase={showBase} setShowBase={(v:boolean)=>{setShowBase(v); if(v) loadBase();}} loading={baseLoading} onRefresh={loadBase} />
             <button onClick={handleExport} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded">⬇️ GeoJSON</button>
-            <button onClick={handleClear} className="text-xs bg-white border px-2 py-1 rounded hover:bg-red-50">🗑️ Effacer</button>
-            <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full animate-pulse">{infractions.length} total</span>
+            {!showBase && <button onClick={handleClear} className="text-xs bg-white border px-2 py-1 rounded hover:bg-red-50">🗑️ Effacer</button>}
+            <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full animate-pulse">{source.length} total</span>
           </div>
         </div>
         <div className="flex gap-2">
           <select value={filterInfraction} onChange={e=>setFilterInfraction(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white">
             <option value="all">Toutes infractions</option>
-            {infractionsTypes.map(t=> <option key={t} value={t}>{t}</option>)}
+            {typesSrc.map(t=> <option key={t} value={t}>{t}</option>)}
           </select>
           <select value={filterConducteur} onChange={e=>setFilterConducteur(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white">
             <option value="all">Tous conducteurs</option>
-            {conducteurs.map(c=> <option key={c} value={c}>{c}</option>)}
+            {conducteursSrc.map(c=> <option key={c} value={c}>{c}</option>)}
           </select>
           <select value={filterStatut} onChange={e=>setFilterStatut(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white" title="Statut posé par les unités (app Android)">
             <option value="all">Tous statuts</option>
@@ -85,7 +171,19 @@ export default function InfractionsList({ infractions, onSelectCar, onClear }: P
             <option value="notifie">Notifié</option>
             <option value="traite">✅ Traité</option>
           </select>
-          {(filterInfraction!=="all" || filterConducteur!=="all" || filterStatut!=="all") && <button onClick={()=>{setFilterInfraction("all"); setFilterConducteur("all"); setFilterStatut("all");}} className="text-xs text-gray-500 underline">Réinitialiser</button>}
+          <select value={filterPeriode} onChange={e=>{setFilterPeriode(e.target.value); if(e.target.value!=="all") setFilterJour("");}} className="text-xs border rounded px-2 py-1 bg-white">
+            <option value="all">Toutes dates</option>
+            <option value="today">Aujourd'hui</option>
+            <option value="7d">7 jours</option>
+            <option value="30d">30 jours</option>
+          </select>
+          <input value={filterPlaque} onChange={e=>setFilterPlaque(e.target.value)} placeholder="🔍 Matricule, véhicule, nom…" className="text-xs border rounded px-2 py-1 bg-white w-40" />
+          {(filterInfraction!=="all" || filterConducteur!=="all" || filterStatut!=="all" || filterPeriode!=="all" || filterJour || filterPlaque) && <button onClick={()=>{setFilterInfraction("all"); setFilterConducteur("all"); setFilterStatut("all"); setFilterPeriode("all"); setFilterJour(""); setFilterPlaque("");}} className="text-xs text-gray-500 underline">Réinitialiser</button>}
+        </div>
+        <div className="flex gap-2 items-center">
+          <label className="text-xs text-gray-500">Jour précis :</label>
+          <input type="date" value={filterJour} onChange={e=>{setFilterJour(e.target.value); if(e.target.value) setFilterPeriode("all");}} className="text-xs border rounded px-2 py-1 bg-white" />
+          {filterJour && <button onClick={()=>setFilterJour("")} className="text-xs text-gray-500 underline">✕</button>}
         </div>
       </div>
       <div className="flex-1 overflow-auto">
@@ -106,9 +204,9 @@ export default function InfractionsList({ infractions, onSelectCar, onClear }: P
             </tr>
           </thead>
           <tbody>
-            {filtered.length===0 ? (
+            {filteredSrc.length===0 ? (
               <tr><td colSpan={11} className="text-center py-8 text-gray-400">Aucune infraction pour ce filtre</td></tr>
-            ) : filtered.map((inf) => {
+            ) : filteredSrc.map((inf) => {
               const d = new Date(inf.recordedAt);
               const heure = d.toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
               const date = d.toLocaleDateString("fr-DZ");
