@@ -8,6 +8,7 @@ interface Infraction {
   speed: number; speedLimit: number; excess: number;
   lat: number; lon: number;
   recordedAt: string; itineraireId: string;
+  statut?: string; wilaya?: string; codeWilaya?: string;
 }
 
 interface Props {
@@ -19,14 +20,16 @@ interface Props {
 export default function InfractionsList({ infractions, onSelectCar, onClear }: Props) {
   const [filterInfraction, setFilterInfraction] = useState<string>("all");
   const [filterConducteur, setFilterConducteur] = useState<string>("all");
+  const [filterStatut, setFilterStatut] = useState<string>("all");
 
   const conducteurs = useMemo(() => [...new Set(infractions.map(i => i.conducteurNom))].sort(), [infractions]);
   const infractionsTypes = useMemo(() => [...new Set(infractions.map(i => i.infraction))].sort(), [infractions]);
 
   const filtered = useMemo(() => infractions.filter(i =>
     (filterInfraction === "all" || i.infraction === filterInfraction) &&
-    (filterConducteur === "all" || i.conducteurNom === filterConducteur)
-  ), [infractions, filterInfraction, filterConducteur]);
+    (filterConducteur === "all" || i.conducteurNom === filterConducteur) &&
+    (filterStatut === "all" || (i.statut || "nouveau") === filterStatut)
+  ), [infractions, filterInfraction, filterConducteur, filterStatut]);
 
   if (!infractions || infractions.length === 0) {
     return (
@@ -76,7 +79,13 @@ export default function InfractionsList({ infractions, onSelectCar, onClear }: P
             <option value="all">Tous conducteurs</option>
             {conducteurs.map(c=> <option key={c} value={c}>{c}</option>)}
           </select>
-          {(filterInfraction!=="all" || filterConducteur!=="all") && <button onClick={()=>{setFilterInfraction("all"); setFilterConducteur("all");}} className="text-xs text-gray-500 underline">Réinitialiser</button>}
+          <select value={filterStatut} onChange={e=>setFilterStatut(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white" title="Statut posé par les unités (app Android)">
+            <option value="all">Tous statuts</option>
+            <option value="nouveau">Nouveau</option>
+            <option value="notifie">Notifié</option>
+            <option value="traite">✅ Traité</option>
+          </select>
+          {(filterInfraction!=="all" || filterConducteur!=="all" || filterStatut!=="all") && <button onClick={()=>{setFilterInfraction("all"); setFilterConducteur("all"); setFilterStatut("all");}} className="text-xs text-gray-500 underline">Réinitialiser</button>}
         </div>
       </div>
       <div className="flex-1 overflow-auto">
@@ -92,12 +101,13 @@ export default function InfractionsList({ infractions, onSelectCar, onClear }: P
               <th className="px-3 py-1.5">Vitesse</th>
               <th className="px-3 py-1.5">Limite</th>
               <th className="px-3 py-1.5">Excès</th>
+              <th className="px-3 py-1.5">Statut unité</th>
               <th className="px-3 py-1.5">Position</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length===0 ? (
-              <tr><td colSpan={10} className="text-center py-8 text-gray-400">Aucune infraction pour ce filtre</td></tr>
+              <tr><td colSpan={11} className="text-center py-8 text-gray-400">Aucune infraction pour ce filtre</td></tr>
             ) : filtered.map((inf) => {
               const d = new Date(inf.recordedAt);
               const heure = d.toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -113,6 +123,7 @@ export default function InfractionsList({ infractions, onSelectCar, onClear }: P
                   <td className="px-3 py-1 font-bold text-red-600">{inf.speed.toFixed(0)} km/h</td>
                   <td className="px-3 py-1">{inf.speedLimit===9999 ? '—' : inf.speedLimit+' km/h'}</td>
                   <td className="px-3 py-1 font-bold text-red-700">{inf.infraction==='exces de vitesse' ? `+${inf.excess.toFixed(0)}` : '—'}</td>
+                  <td className="px-3 py-1"><span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${(inf.statut||'nouveau')==='traite' ? 'bg-green-100 text-green-800' : (inf.statut||'nouveau')==='notifie' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`} title={inf.wilaya ? `Unité ${inf.codeWilaya} - ${inf.wilaya}` : 'Pas encore pris en charge'}>{(inf.statut||'nouveau')==='traite' ? '✅ Traité' : (inf.statut||'nouveau')==='notifie' ? 'Notifié' : 'Nouveau'}</span></td>
                   <td className="px-3 py-1 font-mono text-[11px]">{inf.lat.toFixed(4)}, {inf.lon.toFixed(4)}</td>
                 </tr>
               );

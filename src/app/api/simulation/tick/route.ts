@@ -94,8 +94,33 @@ export async function POST() {
     ),
     bufferStats,
     totalRecordsSentToDb: state.totalRecordsSent,
-    infractions: [...state.infractions].sort((a,b)=> new Date(b.recordedAt).getTime()-new Date(a.recordedAt).getTime()).slice(0, 300),
+    infractions: await avecStatutsUnites([...state.infractions].sort((a,b)=> new Date(b.recordedAt).getTime()-new Date(a.recordedAt).getTime()).slice(0, 300)),
     infractionsCount: state.infractions.length,
     unitesDispatched: dispatched,
   });
+}
+
+// Marque chaque infraction avec le statut mis par les unités (traité dans l'app Android),
+// lu dans infractions_constatees via l'id mémoire (externalId). Défaut : "nouveau".
+async function avecStatutsUnites(list: any[]): Promise<any[]> {
+  if (!list.length) return list;
+  try {
+    const { db } = await import("@/db");
+    const { infractionsConstatees } = await import("@/db/schema");
+    const { inArray } = await import("drizzle-orm");
+    const rows = await db.select({
+      externalId: infractionsConstatees.externalId,
+      statut: infractionsConstatees.statut,
+      wilaya: infractionsConstatees.wilaya,
+      codeWilaya: infractionsConstatees.codeWilaya,
+    }).from(infractionsConstatees)
+      .where(inArray(infractionsConstatees.externalId, list.map((i) => i.id)));
+    const parId = new Map(rows.map((r) => [r.externalId, r]));
+    return list.map((i) => {
+      const m = parId.get(i.id);
+      return m ? { ...i, statut: m.statut, wilaya: m.wilaya, codeWilaya: m.codeWilaya } : { ...i, statut: "nouveau" };
+    });
+  } catch {
+    return list.map((i) => ({ ...i, statut: i.statut || "nouveau" }));
+  }
 }

@@ -145,8 +145,32 @@ export default function MapView({ geojson, selectedCar, onSelectCar, trails, car
       maxZoom: 18,
     });
 
-    // Multi-fonds sans clé (conforme Tile Usage Policy) + sélecteur en haut à droite
+    // Multi-fonds sans clé + sélecteur en haut à droite (défaut : OSM France)
     const baseMaps: Record<string, L.TileLayer> = {
+      "🇫🇷 OSM France": L.tileLayer("https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", {
+        attribution: '&copy; OpenStreetMap France | &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+        subdomains: "abc", maxZoom: 20,
+      }),
+      "🧡 OSM Humanitaire": L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.hotosm.org/">Humanitarian OSM Team</a> | &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+        subdomains: "abc", maxZoom: 20,
+      }),
+      "🏔️ OSM Topo": L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+        attribution: 'Map data: &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+        subdomains: "abc", maxZoom: 17,
+      }),
+      "🛣️ Esri Rues": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+        maxZoom: 19,
+      }),
+      "⛰️ Esri Topo": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", {
+        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+        maxZoom: 19,
+      }),
+      "🛰️ Esri Satellite": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+        maxZoom: 19,
+      }),
       "🗺️ CARTO Clair": L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
         subdomains: "abcd", maxZoom: 19,
@@ -155,24 +179,8 @@ export default function MapView({ geojson, selectedCar, onSelectCar, trails, car
         attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
         subdomains: "abcd", maxZoom: 19,
       }),
-      "🛰️ Esri Satellite": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
-        maxZoom: 19,
-      }),
-      "⛰️ Esri Topo": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", {
-        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
-        maxZoom: 19,
-      }),
-      "🇫🇷 OSM France": L.tileLayer("https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", {
-        attribution: '&copy; OpenStreetMap France | &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-        subdomains: "abc", maxZoom: 20,
-      }),
-      "🏔️ OpenTopo": L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
-        attribution: 'Map data: &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
-        subdomains: "abc", maxZoom: 17,
-      }),
     };
-    baseMaps["🗺️ CARTO Clair"].addTo(map);
+    baseMaps["🇫🇷 OSM France"].addTo(map);
     L.control.layers(baseMaps).addTo(map);
 
     // Fit to Northern Algeria & High Plateaus bounds (including Laghouat)

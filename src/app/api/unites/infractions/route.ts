@@ -5,7 +5,28 @@ import { eq, desc, sql } from "drizzle-orm";
 import { getSimulation } from "@/lib/simulationManager";
 import { dispatchInfractions, resolveWilayaForPosition } from "@/lib/unites";
 
-// GET /api/unites/infractions?codeWilaya=16&infraction=exces de vitesse&categorieVehicule=lourd&statut=nouveau&format=json|geojson
+// Score de gravité (même formule côté Android pour le tri local)
+export function scoreGravite(infraction: string, exces: number | null): number {
+  switch (infraction) {
+    case "circulation à contresens": return 100;
+    case "zone interdite": return 80;
+    case "conduite longue sans arrêt": return 50;
+    case "exces de vitesse": return 40 + Math.min(Number(exces) || 0, 60);
+    case "arrêt interdit":
+    case "stationnement interdit": return 30;
+    case "impossible de comparée": return 10;
+    default: return 20;
+  }
+}
+
+function havKm(a: number, b: number, c: number, d: number): number {
+  const R = 6371, t = Math.PI / 180;
+  const s1 = Math.sin(((c - a) * t) / 2), s2 = Math.sin(((d - b) * t) / 2);
+  const h = s1 * s1 + Math.cos(a * t) * Math.cos(c * t) * s2 * s2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// GET /api/unites/infractions?codeWilaya=16&infraction=exces de vitesse&categorieVehicule=lourd&statut=nouveau&periode=7d&q=1234&lat=36.7&lon=3.0&rayon=10000&tri=gravite&format=json|geojson
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   // Compte unité connecté → territoire imposé (ignore le paramètre client)
@@ -19,6 +40,13 @@ export async function GET(req: NextRequest) {
   const infractionF = searchParams.get("infraction") || "all";
   const catF = searchParams.get("categorieVehicule") || searchParams.get("categorie") || "all";
   const statutF = searchParams.get("statut") || "all";
+  const periodeF = searchParams.get("periode") || "all"; // today | 7d | 30d | all
+  const qF = (searchParams.get("q") || "").trim().toLowerCase();
+  const latF = Number(searchParams.get("lat"));
+  const lonF = Number(searchParams.get("lon"));
+  const rayonF = Math.min(100000, Math.max(100, Number(searchParams.get("rayon") || 10000)));
+  const triF = searchParams.get("tri") || "recent"; // recent | gravite | distance
+  const hasPos = Number.isFinite(latF) && Number.isFinite(lonF);
   const format = searchParams.get("format") || "json";
   const limit = Math.min(2000, Math.max(1, Number(searchParams.get("limit") || 500)));
 
@@ -40,7 +68,26 @@ export async function GET(req: NextRequest) {
   if (infractionF !== "all") filtered = filtered.filter((r) => r.infraction === infractionF);
   if (catF !== "all") filtered = filtered.filter((r) => (r.categorieVehicule || "leger") === catF);
   if (statutF !== "all") filtered = filtered.filter((r) => r.statut === statutF);
-  filtered = filtered.slice(0, limit);
+  if (periodeF !== "all") {
+    const now = new Date();
+    const start = new Date(now);
+    if (periodeF === "today") start.setHours(0, 0, 0, 0);
+    else if (periodeF === "7d") start.setTime(now.getTime() - 7 * 86400 * 1000);
+    else if (periodeF === "30d") start.setTime(now.getTime() - 30 * 86400 * 1000);
+    filtered = filtered.filter((r) => new Date(r.recordedAt) >= start);
+  }
+  if (qF) {
+    filtered = filtered.filter((r) =>
+      String(r.immatriculation || "").toLowerCase().includes(qF) ||
+      String(r.carId || "").toLowerCase().includes(qF) ||
+      String(r.conducteurNom || "").toLowerCase().includes(qF));
+  }
+  let withDist = filtered.map((r) => ({ r, distM: hasPos ? Math.round(havKm(latF, lonF, r.latitude, r.longitude) * 1000) : null as number | null }));
+  if (hasPos) withDist = withDist.filter((x) => (x.distM as number) <= rayonF);
+  if (triF === "gravite") withDist.sort((a, b) => scoreGravite(b.r.infraction, b.r.exces) - scoreGravite(a.r.infraction, a.r.exces));
+  else if (triF === "distance" && hasPos) withDist.sort((a, b) => (a.distM as number) - (b.distM as number));
+  else withDist.sort((a, b) => new Date(b.r.recordedAt).getTime() - new Date(a.r.recordedAt).getTime());
+  filtered = withDist.slice(0, limit).map((x) => (hasPos ? { ...x.r, distM: x.distM } : x.r));
 
   // 3. Stats pour le territoire filtré
   const parType: Record<string, number> = {};
@@ -63,6 +110,7 @@ export async function GET(req: NextRequest) {
         infraction: r.infraction, categorieVehicule: r.categorieVehicule, restriction: r.restriction,
         speed: r.vitesse, speedLimit: r.vitesseLimite, excess: r.exces,
         wilaya: r.wilaya, codeWilaya: r.codeWilaya, statut: r.statut, recordedAt: r.recordedAt,
+        ...(r.distM != null ? { distM: r.distM } : {}),
       },
     }));
     return new NextResponse(JSON.stringify({ type: "FeatureCollection", features }, null, 2), {

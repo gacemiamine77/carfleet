@@ -47,6 +47,19 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // Statut posé par les unités (app Android) — jointure via l'id mémoire
+  try {
+    const { db } = await import("@/db");
+    const { infractionsConstatees } = await import("@/db/schema");
+    const { inArray } = await import("drizzle-orm");
+    if (sorted.length) {
+      const rows = await db.select({
+        externalId: infractionsConstatees.externalId, statut: infractionsConstatees.statut,
+      }).from(infractionsConstatees).where(inArray(infractionsConstatees.externalId, sorted.map((i: any) => i.id)));
+      const parId = new Map(rows.map((r) => [r.externalId, r.statut]));
+      for (const i of sorted as any[]) i.statut = parId.get(i.id) || "nouveau";
+    }
+  } catch {}
   return NextResponse.json({ infractions: sorted, total: list.length });
 }
 
