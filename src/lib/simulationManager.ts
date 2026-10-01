@@ -76,37 +76,77 @@ const globalForSim = globalThis as typeof globalThis & {
   __pendingCustomRoads?: CustomRoadNetwork | null;
 };
 
-const osmRoadsCache = new Map<string, any>();
-function getOsmMaxSpeedForPosition(lat: number, lon: number, wilayaCode?: string): number | null {
+// Index spatial en grille (cellule ~2,2 km) : évite de scanner les 449 Mo de routes
+// à chaque tick (gel du serveur). Construit une fois par wilaya, requêtes en O(voisins).
+const ROAD_CELL = 0.02;
+interface WilayaRoadIndex { lats: number[]; lons: number[]; ms: (number | null)[]; props: any[]; grid: Map<string, number[]>; }
+const osmRoadsCache = new Map<string, WilayaRoadIndex | null>();
+function roadCellKey(lat: number, lon: number): string {
+  return Math.floor(lat / ROAD_CELL) + ":" + Math.floor(lon / ROAD_CELL);
+}
+function loadWilayaRoads(code: string): WilayaRoadIndex | null {
+  if (osmRoadsCache.has(code)) return osmRoadsCache.get(code) ?? null;
+  let idx: WilayaRoadIndex | null = null;
   try {
-    const codes = wilayaCode ? [wilayaCode] : Array.from({length:58},(_,i)=> String(i+1).padStart(2,"0"));
-    let best: number | null = null, bestDist = Infinity;
-    for (const code of codes) {
-      let gj = osmRoadsCache.get(code);
-      if (!gj) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const fs = require("fs"); const path = require("path");
-          const file = path.join(process.cwd(), "public", "data", "algeria-roads", `algeria-roads-${code}.geojson`);
-          if (!fs.existsSync(file)) continue;
-          gj = JSON.parse(fs.readFileSync(file, "utf8"));
-          osmRoadsCache.set(code, gj);
-        } catch { continue; }
-      }
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require("fs"); const path = require("path");
+    const file = path.join(process.cwd(), "public", "data", "algeria-roads", `algeria-roads-${code}.geojson`);
+    if (fs.existsSync(file)) {
+      const gj = JSON.parse(fs.readFileSync(file, "utf8"));
+      const lats: number[] = [], lons: number[] = [], ms: (number | null)[] = [], props: any[] = [];
+      const grid = new Map<string, number[]>();
       for (const f of gj.features || []) {
-        const coords = f.geometry?.coordinates;
+        let coords = f.geometry?.coordinates;
         if (!Array.isArray(coords)) continue;
-        const ms = f.properties?.maxspeed ? parseInt(String(f.properties.maxspeed).replace(/[^0-9]/g,""),10) : NaN;
-        if (!Number.isFinite(ms)) continue;
-        for (const [clon, clat] of coords) {
-          const d = haversineDistance(lat, lon, clat, clon);
-          if (d < bestDist && d < 200) {
-            bestDist = d;
-            best = ms;
-          }
+        // MultiLineString → aplatit d'un niveau
+        if (Array.isArray(coords[0]?.[0])) {
+          const flat: any[] = [];
+          for (const line of coords) if (Array.isArray(line)) flat.push(...line);
+          coords = flat;
+        }
+        const m = f.properties?.maxspeed ? parseInt(String(f.properties.maxspeed).replace(/[^0-9]/g, ""), 10) : NaN;
+        const mVal = Number.isFinite(m) ? m : null;
+        const pr = f.properties || {};
+        for (const c of coords) {
+          const clon = c?.[0], clat = c?.[1];
+          if (!Number.isFinite(clon) || !Number.isFinite(clat)) continue;
+          const i = lats.length;
+          lats.push(clat); lons.push(clon); ms.push(mVal); props.push(pr);
+          const k = roadCellKey(clat, clon);
+          let arr = grid.get(k);
+          if (!arr) { arr = []; grid.set(k, arr); }
+          arr.push(i);
         }
       }
-      if (best != null) return best;
+      idx = { lats, lons, ms, props, grid };
+    }
+  } catch {}
+  osmRoadsCache.set(code, idx);
+  return idx;
+}
+function nearestRoadPt(idx: WilayaRoadIndex, lat: number, lon: number, maxDistM: number, needMs: boolean): number {
+  const cx = Math.floor(lat / ROAD_CELL), cy = Math.floor(lon / ROAD_CELL);
+  let best = -1, bestDist = Infinity;
+  for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+    const arr = idx.grid.get((cx + dx) + ":" + (cy + dy));
+    if (!arr) continue;
+    for (const i of arr) {
+      if (needMs && idx.ms[i] == null) continue;
+      const d = haversineDistance(lat, lon, idx.lats[i], idx.lons[i]);
+      if (d < bestDist && d < maxDistM) { bestDist = d; best = i; }
+    }
+  }
+  return best;
+}
+const ALL_WILAYAS = Array.from({ length: 58 }, (_, i) => String(i + 1).padStart(2, "0"));
+function getOsmMaxSpeedForPosition(lat: number, lon: number, wilayaCode?: string): number | null {
+  try {
+    const codes = wilayaCode ? [wilayaCode] : ALL_WILAYAS;
+    for (const code of codes) {
+      const idx = loadWilayaRoads(code);
+      if (!idx) continue;
+      const i = nearestRoadPt(idx, lat, lon, 200, true);
+      if (i >= 0) return idx.ms[i];
     }
   } catch {}
   return null;
@@ -114,31 +154,12 @@ function getOsmMaxSpeedForPosition(lat: number, lon: number, wilayaCode?: string
 
 function getOsmRestrictionsForPosition(lat: number, lon: number, wilayaCode?: string): any | null {
   try {
-    const codes = wilayaCode ? [wilayaCode] : Array.from({length:58},(_,i)=> String(i+1).padStart(2,"0"));
-    let best: any = null, bestDist = Infinity;
+    const codes = wilayaCode ? [wilayaCode] : ALL_WILAYAS;
     for (const code of codes) {
-      let gj = osmRoadsCache.get(code);
-      if (!gj) {
-        try {
-          const fs = require("fs"); const path = require("path");
-          const file = path.join(process.cwd(), "public", "data", "algeria-roads", `algeria-roads-${code}.geojson`);
-          if (!fs.existsSync(file)) continue;
-          gj = JSON.parse(fs.readFileSync(file, "utf8"));
-          osmRoadsCache.set(code, gj);
-        } catch { continue; }
-      }
-      for (const f of gj.features || []) {
-        const coords = f.geometry?.coordinates;
-        if (!Array.isArray(coords)) continue;
-        for (const [clon, clat] of coords) {
-          const d = haversineDistance(lat, lon, clat, clon);
-          if (d < bestDist && d < 80) {
-            bestDist = d;
-            best = f.properties || {};
-          }
-        }
-      }
-      if (best) return best;
+      const idx = loadWilayaRoads(code);
+      if (!idx) continue;
+      const i = nearestRoadPt(idx, lat, lon, 80, false);
+      if (i >= 0) return idx.props[i];
     }
   } catch {}
   return null;
