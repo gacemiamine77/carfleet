@@ -1,0 +1,9 @@
+{
+  "name": "Espace Propriétaires DZ",
+  "short_name": "Propriétaires",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#065f46",
+  "theme_color": "#065f46",
+  "icons": []
+}

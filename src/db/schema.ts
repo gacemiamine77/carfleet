@@ -227,6 +227,36 @@ export const sessionsUnites = pgTable("sessions_unites", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+// ─── COMPTES PROPRIETAIRES (espace propriétaires indépendant) ───────
+// Inscription libre pour l'instant (actif=true) ; bascule validation admin
+// plus tard en créant les comptes avec actif=false + écran de validation.
+export const comptesProprietaires = pgTable("comptes_proprietaires", {
+  id: serial("id").primaryKey(),
+  proprietaireId: integer("proprietaire_id").notNull().references(() => proprietaires.id),
+  username: varchar("username", { length: 64 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  actif: boolean("actif").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const sessionsProprietaires = pgTable("sessions_proprietaires", {
+  token: varchar("token", { length: 96 }).primaryKey(),
+  compteId: integer("compte_id").notNull().references(() => comptesProprietaires.id),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// ─── AFFECTATIONS (chauffeur désigné d'un véhicule, 1 actif à la fois) ─
+export const affectations = pgTable("affectations", {
+  id: serial("id").primaryKey(),
+  voitureId: integer("voiture_id").notNull().references(() => voitures.id),
+  conducteurId: integer("conducteur_id").notNull().references(() => conducteurs.id),
+  debutAt: timestamp("debut_at", { withTimezone: true }).defaultNow(),
+  finAt: timestamp("fin_at", { withTimezone: true }),
+  actif: boolean("actif").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 // ─── INFRACTIONS CONSTATEES (persistées + dispatchées aux unités) ─
 export const infractionsConstatees = pgTable("infractions_constatees", {
   id: serial("id").primaryKey(),

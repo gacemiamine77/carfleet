@@ -71,6 +71,7 @@ export default function Home() {
     maxContinuousDrivingHours: 4 as number | undefined,
     customOrigin: null as string | null,
     customDestination: null as string | null,
+    sourceDonnees: "aleatoire" as "aleatoire" | "registre",
   });
 
   const [running, setRunning] = useState(false);
@@ -97,12 +98,14 @@ export default function Home() {
   const [showInfractions, setShowInfractions] = useState(true);
   const [showTrails, setShowTrails] = useState(true);
   const [mapInfractions, setMapInfractions] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<"carte" | "infractions" | "panneaux" | "unites">("carte");
+  const [activeTab, setActiveTab] = useState<"carte" | "infractions" | "panneaux" | "unites" | "vehicules">("carte");
   const [customRoads, setCustomRoads] = useState<any>(null);
   const [selectingItineraryFor, setSelectingItineraryFor] = useState<string | null>(null);
   const [pendingItinerary, setPendingItinerary] = useState<{ carId: string; origin?: [number, number]; destination?: [number, number] } | null>(null);
   const [panneaux, setPanneaux] = useState<any[]>([]);
   const [unites, setUnites] = useState<any[]>([]);
+  const [vehiculesInscrits, setVehiculesInscrits] = useState<any[]>([]);
+  const [searchVeh, setSearchVeh] = useState("");
   const [comptes, setComptes] = useState<any[]>([]);
   const [cWilaya, setCWilaya] = useState("");
   const [cCorps, setCCorps] = useState("");
@@ -146,6 +149,11 @@ export default function Home() {
     // Unités lues depuis la table unites_securite (pas du GeoJSON)
     fetch("/api/unites").then(r=>r.json()).then(d=> setUnites(d.unites || [])).catch(()=> setUnites([]));
     fetch("/api/unites/comptes").then(r=>r.json()).then(d=> setComptes(d.comptes || [])).catch(()=> setComptes([]));
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== "vehicules") return;
+    fetch("/api/admin/vehicules-inscrits").then(r=>r.json()).then(d=> setVehiculesInscrits(d.vehicules || [])).catch(()=> setVehiculesInscrits([]));
   }, [activeTab]);
 
   const reverseGeocodeFE = async (lat:number, lon:number) => {
@@ -206,7 +214,11 @@ export default function Home() {
     setPrepared(true);
     setPaused(false);
     setInitLoading(false);
-    setLastFlushMsg("✅ Voitures et chemins prêts — fixez les croquis vitesse puis GO");
+    setLastFlushMsg(data.registreVide
+      ? "⚠️ Registre vide — repli sur véhicules aléatoires"
+      : data.sourceDonnees === "registre"
+        ? "✅ Véhicules inscrits prêts (vrais noms) — GO"
+        : "✅ Voitures et chemins prêts — fixez les croquis vitesse puis GO");
   }, [config]);
 
   const handleGo = useCallback(async () => {
@@ -391,6 +403,7 @@ export default function Home() {
         <button onClick={() => setActiveTab("infractions")} className={`px-4 py-1.5 rounded-t-lg text-sm font-semibold flex items-center gap-2 ${activeTab==="infractions" ? "bg-white shadow text-red-700 border" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>🚨 Infractions {infractions.length>0 && <span className="bg-red-600 text-white text-xs px-1.5 py-0.5 rounded-full">{infractions.length}</span>}</button>
         <button onClick={() => setActiveTab("panneaux")} className={`px-4 py-1.5 rounded-t-lg text-sm font-semibold ${activeTab==="panneaux" ? "bg-white shadow text-amber-700 border" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>🛑 Panneaux</button>
         <button onClick={() => setActiveTab("unites")} className={`px-4 py-1.5 rounded-t-lg text-sm font-semibold flex items-center gap-2 ${activeTab==="unites" ? "bg-white shadow text-blue-800 border" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>🚓 Unités {unites.length>0 && <span className="bg-blue-700 text-white text-xs px-1.5 py-0.5 rounded-full">{unites.length}</span>}</button>
+        <button onClick={() => setActiveTab("vehicules")} className={`px-4 py-1.5 rounded-t-lg text-sm font-semibold flex items-center gap-2 ${activeTab==="vehicules" ? "bg-white shadow text-emerald-800 border" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>🚙 Inscrites {vehiculesInscrits.length>0 && <span className="bg-emerald-700 text-white text-xs px-1.5 py-0.5 rounded-full">{vehiculesInscrits.length}</span>}</button>
       </div>
 
       {/* Main Content Area - garde MapView monté pour conserver footprints */}
@@ -539,7 +552,7 @@ export default function Home() {
               }} />
             </label>
             <a href="/api/unites/geojson" target="_blank" className="text-xs bg-blue-700 hover:bg-blue-800 text-white px-3 py-1.5 rounded flex items-center">⬇️ Télécharger GeoJSON</a>
-            <a href="/../security-units-app/index.html" target="_blank" className="text-xs bg-white border px-3 py-1.5 rounded flex items-center hover:bg-blue-50">📱 App unités</a>
+            <a href="/security-units-app/index.html" target="_blank" className="text-xs bg-white border px-3 py-1.5 rounded flex items-center hover:bg-blue-50">📱 App unités</a>
           </div>
           <div className="text-[11px] text-gray-400">Route: <code>/api/unites/geojson</code> — {unites.length} unités</div>
         </div>
@@ -632,6 +645,47 @@ export default function Home() {
                     <td className="px-3 py-1">{f.telephone || "—"}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div className={`flex-1 overflow-auto p-4 space-y-4 ${activeTab!=="vehicules" ? "hidden" : ""}`}>
+        <div className="bg-white rounded-xl shadow p-4 border">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <h3 className="font-bold text-sm">🚙 Véhicules inscrites — {vehiculesInscrits.length}</h3>
+            <div className="flex gap-2">
+              <input value={searchVeh} onChange={e=>setSearchVeh(e.target.value)} placeholder="🔍 Immat, propriétaire, chauffeur…" className="text-xs border rounded px-2 py-1.5 w-64" />
+              <button onClick={()=>fetch("/api/admin/vehicules-inscrits").then(r=>r.json()).then(d=> setVehiculesInscrits(d.vehicules||[]))} className="text-xs bg-white border px-3 py-1.5 rounded hover:bg-emerald-50">🔄</button>
+              <a href="/proprietaires-app/index.html" target="_blank" className="text-xs bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded flex items-center">📝 Espace propriétaires</a>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">Registre des propriétaires inscrits (avec compte) : ces véhicules et chauffeurs sont utilisés par la simulation en mode « Registre ».</p>
+        </div>
+        <div className="bg-white rounded-xl shadow border overflow-hidden">
+          <div className="max-h-[55vh] overflow-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr className="text-left text-gray-500"><th className="px-3 py-1.5">Immatriculation</th><th className="px-3 py-1.5">Véhicule</th><th className="px-3 py-1.5">Catégorie</th><th className="px-3 py-1.5">Propriétaire</th><th className="px-3 py-1.5">Tél</th><th className="px-3 py-1.5">Wilaya</th><th className="px-3 py-1.5">Chauffeur désigné</th></tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const q = searchVeh.trim().toLowerCase();
+                  const list = vehiculesInscrits.filter((v:any)=> !q || (v.immatriculation||"").toLowerCase().includes(q) || (v.proprietaire||"").toLowerCase().includes(q) || (v.chauffeur||"").toLowerCase().includes(q) || (v.carId||"").toLowerCase().includes(q));
+                  if (!list.length) return (<tr><td colSpan={7} className="text-center py-8 text-gray-400">Aucun véhicule inscrit — les propriétaires s’inscrivent via l’Espace propriétaires</td></tr>);
+                  return list.map((v:any)=>(
+                    <tr key={v.id} className="border-t hover:bg-emerald-50">
+                      <td className="px-3 py-1 font-mono font-semibold">{v.immatriculation} <span className="text-gray-400 font-normal">({v.carId})</span></td>
+                      <td className="px-3 py-1">{v.marque} {v.modele} {v.couleur && `(${v.couleur})`}</td>
+                      <td className="px-3 py-1">{v.categorieVehicule}</td>
+                      <td className="px-3 py-1">{v.proprietaire}</td>
+                      <td className="px-3 py-1">{v.proprietaireTel}</td>
+                      <td className="px-3 py-1">{v.codeWilaya} - {v.wilaya}</td>
+                      <td className="px-3 py-1">{v.chauffeur ? <>🧑‍✈️ {v.chauffeur} <span className="text-gray-400">({v.chauffeurTel})</span></> : <span className="text-red-500">non désigné</span>}</td>
+                    </tr>
+                  ));
+                })()}
               </tbody>
             </table>
           </div>

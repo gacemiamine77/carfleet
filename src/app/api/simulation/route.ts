@@ -106,7 +106,17 @@ export async function POST(req: NextRequest) {
       maxContinuousDrivingHours,
       customOrigin,
       customDestination,
+      sourceDonnees,
     } = body;
+
+    // Mode registre : la sim utilise les vrais inscrits (sinon fallback aléatoire signalé)
+    let registre: any[] | undefined;
+    let registreVide = false;
+    if (sourceDonnees === "registre") {
+      const { loadRegistreTriplets } = await import("@/lib/simulationManager");
+      registre = await loadRegistreTriplets(vehicleCategories);
+      if (!registre.length) registreVide = true;
+    }
 
     const state = createSimulation({
       numCars,
@@ -120,7 +130,8 @@ export async function POST(req: NextRequest) {
       maxContinuousDrivingHours,
       customOrigin,
       customDestination,
-    } as any);
+      sourceDonnees: registreVide ? "aleatoire" : sourceDonnees,
+    } as any, registreVide ? undefined : registre);
 
     // Prépare les routes sans lancer la course (pour affichage avant GO)
     // On génère les itinéraires via OSRM/perso de manière synchrone
@@ -136,6 +147,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       sessionId: state.sessionId,
+      sourceDonnees: (state.config as any).sourceDonnees || "aleatoire",
+      registreVide,
       carsGeoJSON: carsToGeoJSON(state.cars),
       carsList: state.cars.map((c) => ({
         carId: c.voiture.carId,

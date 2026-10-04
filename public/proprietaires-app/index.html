@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#065f46">
+<title>Espace Propriétaires — Suivi véhicules DZ</title>
+<link rel="manifest" href="./manifest.json">
+<style>
+*{box-sizing:border-box}body{font-family:system-ui;margin:0;background:#ecfdf5;color:#0f172a}
+header{background:#065f46;color:#fff;padding:12px 14px;position:sticky;top:0;z-index:10}
+header h1{font-size:17px;margin:0}header p{font-size:12px;margin:2px 0 0;color:#a7f3d0}
+main{padding:10px;max-width:900px;margin:auto;display:flex;flex-direction:column;gap:10px}
+.card{background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 3px #0002}
+.card h3{margin:0 0 8px;font-size:15px}
+label{font-size:12px;display:flex;flex-direction:column;gap:4px;margin-bottom:6px}
+input,select{padding:8px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px;width:100%}
+button{background:#065f46;color:#fff;border:0;font-weight:700;cursor:pointer;padding:9px 14px;border-radius:8px;font-size:14px}
+button.ghost{background:#fff;color:#065f46;border:1px solid #065f46}
+button.danger{background:#b91c1c}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:left}
+th{background:#f8fafc}
+.stat{display:inline-block;background:#d1fae5;border-radius:8px;padding:8px 12px;margin:0 8px 8px 0}
+.stat b{font-size:18px;display:block}
+.hidden{display:none!important}
+#log{background:#0f172a;color:#e2e8f0;font-family:monospace;font-size:11px;border-radius:10px;padding:8px;height:90px;overflow:auto}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button{flex:1;white-space:nowrap}
+.tabs button.off{background:#d1fae5;color:#065f46}
+@media(max-width:600px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>🚗 Espace Propriétaires</h1><p>Inscription · mes véhicules · chauffeurs · kilométrage</p></header>
+<main>
+<div class="card hidden" id="authCard">
+  <div class="tabs">
+    <button id="tabLogin" onclick="mode('login')">Connexion</button>
+    <button id="tabReg" class="off" onclick="mode('reg')">Inscription</button>
+  </div>
+  <div id="regFields" class="hidden">
+    <div class="grid2">
+      <label>Type<select id="r_type"><option value="physique">Personne physique</option><option value="morale">Entreprise</option></select></label>
+      <label>Téléphone*<input id="r_tel" placeholder="+213 ..."></label>
+      <label>Nom<input id="r_nom" placeholder="Nom de famille"></label>
+      <label>Prénom<input id="r_prenom"></label>
+      <label>Raison sociale (entreprise)<input id="r_rs"></label>
+      <label>Wilaya<input id="r_wilaya" placeholder="Alger"></label>
+      <label>NIN (optionnel)<input id="r_nin"></label>
+      <label>Commune<input id="r_commune"></label>
+    </div>
+  </div>
+  <label>URL plateforme<input id="url" value="http://192.168.0.2:3000"></label>
+  <label>Nom d'utilisateur*<input id="u" autocomplete="username"></label>
+  <label>Mot de passe* (6+)<input id="p" type="password" autocomplete="current-password"></label>
+  <button id="go" onclick="auth()">Se connecter</button>
+</div>
+
+<div class="card hidden" id="mainCard">
+  <h3 id="hello">👋</h3>
+  <div><span class="stat"><b id="stVeh">0</b><span>véhicules</span></span><span class="stat"><b id="stKm">0</b><span>km (30 j)</span></span><span class="stat"><b id="stTr">0</b><span>trajets (30 j)</span></span></div>
+  <button class="ghost" onclick="logout()">Déconnexion</button>
+</div>
+
+<div class="card hidden" id="vehCard">
+  <h3>🚙 Mes véhicules</h3>
+  <div id="vehList"></div>
+  <h3 style="margin-top:10px">➕ Ajouter un véhicule</h3>
+  <div class="grid2">
+    <label>Immatriculation*<input id="v_immat" placeholder="12345-678-16"></label>
+    <label>Marque<input id="v_marque" placeholder="Renault"></label>
+    <label>Modèle<input id="v_modele" placeholder="Symbol"></label>
+    <label>Catégorie<select id="v_cat"><option value="leger">Léger</option><option value="lourd">Lourd</option><option value="transport">Transport</option><option value="transport_dangereux">Dangereux</option><option value="convoi_exceptionnel">Convoi exceptionnel</option></select></label>
+    <label>Hauteur (m)<input id="v_h" type="number" step="0.1"></label>
+    <label>Largeur (m)<input id="v_l" type="number" step="0.1"></label>
+  </div>
+  <button onclick="addVeh()">Ajouter</button>
+  <h3 style="margin-top:10px">🧑‍✈️ Désigner un chauffeur</h3>
+  <div class="grid2">
+    <label>Véhicule<select id="c_veh"></select></label>
+    <label>Nom*<input id="c_nom"></label>
+    <label>Prénom*<input id="c_prenom"></label>
+    <label>Tél chauffeur*<input id="c_tel"></label>
+    <label>N° permis<input id="c_permis"></label>
+    <label>Wilaya<input id="c_wilaya"></label>
+  </div>
+  <button onclick="addCh()">Désigner</button>
+</div>
+
+<div class="card hidden" id="statsCard">
+  <h3>📊 Kilométrage</h3>
+  <label>Véhicule<select id="s_veh"><option value="">Tous mes véhicules</option></select></label>
+  <div class="grid2">
+    <label>Groupé par<select id="s_g"><option value="jour">Jour</option><option value="mois">Mois</option></select></label>
+    <label>Début<input id="s_deb" type="date"></label>
+    <label>Fin<input id="s_fin" type="date"></label>
+  </div>
+  <button onclick="stats()">Calculer</button>
+  <div id="statsOut" style="margin-top:8px"></div>
+</div>
+<div id="log"></div>
+</main>
+<script>
+let MODE='login', TOKEN=localStorage.getItem('pp_token')||'', BASE=localStorage.getItem('pp_base')||'';
+function log(m){const b=document.getElementById('log');const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+m;b.prepend(d);}
+function mode(m){MODE=m;document.getElementById('regFields').classList.toggle('hidden',m==='login');document.getElementById('go').textContent=m==='login'?'Se connecter':"S'inscrire";document.getElementById('tabLogin').classList.toggle('off',m!=='login');document.getElementById('tabReg').classList.toggle('off',m!=='reg');}
+function headers(){return {'Content-Type':'application/json',...(TOKEN?{'Authorization':'Bearer '+TOKEN}:{})};}
+async function api(path,body){const r=await fetch(BASE+path,{method:body?'POST':'GET',headers:headers(),body:body?JSON.stringify(body):undefined});const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j;}
+function show(logged){
+  for(const id of ['mainCard','vehCard','statsCard'])document.getElementById(id).classList.toggle('hidden',!logged);
+  document.getElementById('authCard').classList.toggle('hidden',logged);
+}
+async function auth(){
+  BASE=document.getElementById('url').value.replace(/\/$/,'');
+  const u=document.getElementById('u').value.trim(), p=document.getElementById('p').value;
+  try{
+    let j;
+    if(MODE==='reg'){
+      j=await(await fetch(BASE+'/api/proprietaires/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,type:document.getElementById('r_type').value,nom:document.getElementById('r_nom').value,prenom:document.getElementById('r_prenom').value,raisonSociale:document.getElementById('r_rs').value,telephone:document.getElementById('r_tel').value,wilaya:document.getElementById('r_wilaya').value,nin:document.getElementById('r_nin').value||undefined,commune:document.getElementById('r_commune').value||undefined})})).json();
+      if(!j.ok)throw new Error(j.error);
+    } else {
+      j=await(await fetch(BASE+'/api/proprietaires/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})})).json();
+      if(!j.ok)throw new Error(j.error);
+    }
+    TOKEN=j.token;localStorage.setItem('pp_token',TOKEN);localStorage.setItem('pp_base',BASE);
+    log('OK connecté');enter();
+  }catch(e){log('ERR '+e.message);}
+}
+async function enter(){
+  show(true);
+  try{
+    const v=await api('/api/proprietaires/vehicules');
+    document.getElementById('stVeh').textContent=v.vehicules.length;
+    document.getElementById('vehList').innerHTML=v.vehicules.map(x=>'<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px;margin-bottom:6px"><b>'+x.immatriculation+'</b> <small>'+(x.marque||'')+' '+(x.modele||'')+'</small><br><small>Chauffeur : '+(x.chauffeur?x.chauffeur.prenom+' '+x.chauffeur.nom:'<i style="color:#b91c1c">non désigné</i>')+'</small></div>').join('')||'<i>Aucun véhicule — ajoutez le premier ci-dessous.</i>';
+    const opts=v.vehicules.map(x=>'<option value="'+x.id+'">'+x.immatriculation+'</option>').join('');
+    document.getElementById('c_veh').innerHTML=opts;
+    const sopts='<option value="">Tous mes véhicules</option>'+v.vehicules.map(x=>'<option value="'+x.carId+'">'+x.immatriculation+'</option>').join('');
+    document.getElementById('s_veh').innerHTML=sopts;
+    const s=await api('/api/proprietaires/stats?groupby=jour');
+    document.getElementById('stKm').textContent=s.totalKm;document.getElementById('stTr').textContent=s.totalTrajets;
+    document.getElementById('hello').textContent='👋 '+v.vehicules.length+' véhicule(s)';
+  }catch(e){log('ERR '+e.message);}
+}
+async function addVeh(){
+  try{
+    const j=await api('/api/proprietaires/vehicules',{immatriculation:document.getElementById('v_immat').value,marque:document.getElementById('v_marque').value,modele:document.getElementById('v_modele').value,categorieVehicule:document.getElementById('v_cat').value,hauteur:document.getElementById('v_h').value||undefined,largeur:document.getElementById('v_l').value||undefined});
+    log('OK véhicule '+j.vehicule.immatriculation);enter();
+  }catch(e){log('ERR '+e.message);}
+}
+async function addCh(){
+  try{
+    const j=await api('/api/proprietaires/chauffeurs',{voitureId:document.getElementById('c_veh').value,nom:document.getElementById('c_nom').value,prenom:document.getElementById('c_prenom').value,telephone:document.getElementById('c_tel').value,numeroPermis:document.getElementById('c_permis').value||undefined,wilaya:document.getElementById('c_wilaya').value||undefined});
+    log('OK chauffeur '+j.chauffeur.prenom+' '+j.chauffeur.nom);enter();
+  }catch(e){log('ERR '+e.message);}
+}
+async function stats(){
+  try{
+    const p=new URLSearchParams({groupby:document.getElementById('s_g').value});
+    if(document.getElementById('s_veh').value)p.set('carId',document.getElementById('s_veh').value);
+    if(document.getElementById('s_deb').value)p.set('debut',document.getElementById('s_deb').value);
+    if(document.getElementById('s_fin').value)p.set('fin',document.getElementById('s_fin').value);
+    const s=await api('/api/proprietaires/stats?'+p.toString());
+    document.getElementById('statsOut').innerHTML='<p><b>'+s.totalKm+' km</b> · '+s.totalTrajets+' trajets · moy '+s.vitesseMoyenne+' km/h</p><table><thead><tr><th>Période</th><th>Km</th><th>Trajets</th><th>Vit. moy</th></tr></thead><tbody>'+
+      s.series.map(x=>'<tr><td>'+x.periode+'</td><td>'+x.km+'</td><td>'+x.trajets+'</td><td>'+x.vitesseMoyenne+'</td></tr>').join('')+'</tbody></table>';
+  }catch(e){log('ERR '+e.message);}
+}
+function logout(){TOKEN='';localStorage.removeItem('pp_token');show(false);}
+if(TOKEN&&BASE){document.getElementById('url').value=BASE;enter();}else{show(false);}
+mode('login');
+</script>
+</body>
+</html>

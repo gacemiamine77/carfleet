@@ -11,6 +11,7 @@ interface SimConfig {
   flushThresholdMinutes: number;
   selectedWilayas: string[];
   vehicleCategories?: string[];
+  sourceDonnees?: "aleatoire" | "registre";
   simulateContresens?: boolean;
   maxContinuousDrivingHours?: number;
   customOrigin?: string | null;
@@ -137,6 +138,18 @@ export default function ControlPanel({
             </label>
           ))}
         </div>
+      </div>
+
+      {/* Source des données : aléatoire ou vrais inscrits */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          🧑‍🤝‍🧑 Véhicules simulés :
+        </label>
+        <select value={localConfig.sourceDonnees || "aleatoire"} onChange={e=>{ const nc={...localConfig, sourceDonnees:e.target.value as any}; setLocalConfig(nc); onConfigChange(nc); }} disabled={running} className="w-full px-2 py-1.5 text-sm border rounded-lg bg-white">
+          <option value="aleatoire">🎲 Aléatoires (noms générés)</option>
+          <option value="registre">📋 Inscrits (registre propriétaires)</option>
+        </select>
+        <p className="text-[10px] text-gray-400 mt-1">Registre = vrais propriétaires, véhicules et chauffeurs désignés.</p>
       </div>
 
       {/* Contresens simulation */}

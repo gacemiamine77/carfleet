@@ -48,6 +48,62 @@ export interface SimulationConfig {
   maxContinuousDrivingHours?: number;
   customOrigin?: string | null;
   customDestination?: string | null;
+  sourceDonnees?: "aleatoire" | "registre"; // registre = vrais inscrits (propriétaires-app)
+}
+
+export interface RegistreTriplet { proprietaire: Proprietaire; voiture: Voiture; conducteur: Conducteur; }
+
+// Charge tout le registre inscrit (véhicules + propriétaire + chauffeur désigné)
+// pour que la simulation utilise les vrais noms. Fallback conducteur généré si non désigné.
+export async function loadRegistreTriplets(allowedCategories?: string[]): Promise<RegistreTriplet[]> {
+  const { db } = await import("@/db");
+  const { voitures, proprietaires, conducteurs, affectations, comptesProprietaires } = await import("@/db/schema");
+  const { eq, and, desc } = await import("drizzle-orm");
+  // Uniquement les propriétaires INSCRITS (avec compte), pas les véhicules externes auto-créés
+  const rows = await db.select({ voiture: voitures, proprio: proprietaires })
+    .from(voitures).innerJoin(proprietaires, eq(voitures.proprietaireId, proprietaires.id))
+    .innerJoin(comptesProprietaires, eq(comptesProprietaires.proprietaireId, proprietaires.id))
+    .orderBy(desc(voitures.id));
+  const out: RegistreTriplet[] = [];
+  let colorIdx = 0;
+  for (const { voiture: v, proprio: p } of rows) {
+    const cat = ((v as any).categorieVehicule || "leger") as CategorieVehicule;
+    if (allowedCategories?.length && !allowedCategories.includes(cat)) continue;
+    const aff = await db.select({ cond: conducteurs }).from(affectations)
+      .innerJoin(conducteurs, eq(affectations.conducteurId, conducteurs.id))
+      .where(and(eq(affectations.voitureId, v.id), eq(affectations.actif, true as any)))
+      .orderBy(desc(affectations.id)).limit(1);
+    const dc = aff[0]?.cond;
+    const dnProp = p.dateNaissance ? new Date(p.dateNaissance as any) : undefined;
+    const proprietaire: Proprietaire = {
+      id: p.id, nin: p.nin, type: p.type as any,
+      nom: p.nom || undefined, prenom: p.prenom || undefined, raisonSociale: p.raisonSociale || undefined,
+      dateNaissance: dnProp, telephone: p.telephone, adresse: p.adresse || "",
+      commune: p.commune || "", wilaya: p.wilaya || "", codeWilaya: p.codeWilaya || "",
+    };
+    const voiture: Voiture = {
+      id: v.id, carId: v.carId, proprietaire, immatriculation: v.immatriculation,
+      marque: v.marque || "Inconnue", modele: v.modele || "—", couleur: v.couleur || "Gris",
+      annee: v.annee || 2020, mapColor: CAR_MAP_COLORS[colorIdx++ % CAR_MAP_COLORS.length],
+      categorieVehicule: cat, hauteur: (v as any).hauteur || 1.6, largeur: (v as any).largeur || 1.8,
+      poids: (v as any).poids || 1.5, convoiSpecial: !!(v as any).convoiSpecial,
+    };
+    let conducteur: Conducteur;
+    if (dc) {
+      const dn = dc.dateNaissance ? new Date(dc.dateNaissance as any) : new Date(1990, 0, 1);
+      conducteur = {
+        id: dc.id, nin: dc.nin, nom: dc.nom, prenom: dc.prenom, dateNaissance: dn,
+        age: calculateAge(dn), telephone: dc.telephone, numeroPermis: dc.numeroPermis || "—",
+        categoriePermis: dc.categoriePermis || "B", commune: dc.commune || "", wilaya: dc.wilaya || "",
+        profil: "normal", speed_factor: 0.95, a_max: 1.5, b_comfort: 2.5, reaction_time: 1.2,
+      };
+    } else {
+      conducteur = generateConducteur(9000 + out.length, new Set<string>());
+      conducteur.nom = "Non désigné";
+    }
+    out.push({ proprietaire, voiture, conducteur });
+  }
+  return out;
 }
 
 export interface SimulationState {
@@ -448,12 +504,14 @@ export function getSimulation(): SimulationState | null { return globalForSim.__
 export function setPendingCustomRoads(net: CustomRoadNetwork | null) { globalForSim.__pendingCustomRoads = net; }
 export function getPendingCustomRoads(): CustomRoadNetwork | null { return globalForSim.__pendingCustomRoads ?? null; }
 
-export function createSimulation(config: SimulationConfig): SimulationState {
+export function createSimulation(config: SimulationConfig, registre?: RegistreTriplet[]): SimulationState {
   const existingState = getSimulation();
   if (existingState) stopSimulation();
-  const prs = Array.from({ length: Math.ceil(config.numCars * 0.7) }, (_, i) => generateProprietaire(i + 1));
+  // Mode registre : vrais inscrits (tout le registre, cyclé si numCars > inscrits)
+  const useRegistre = config.sourceDonnees === "registre" && registre && registre.length > 0;
+  const prs = useRegistre ? [] : Array.from({ length: Math.ceil(config.numCars * 0.7) }, (_, i) => generateProprietaire(i + 1));
   const usedNames = new Set<string>();
-  const cds = Array.from({ length: config.numCars + 5 }, (_, i) => generateConducteur(i + 1, usedNames));
+  const cds = useRegistre ? [] : Array.from({ length: config.numCars + 5 }, (_, i) => generateConducteur(i + 1, usedNames));
   
   const avAll = getPool(config.selectedWilayas, false);
   const av = getPool(config.selectedWilayas, false); // garde chefs-lieux + communes
@@ -473,7 +531,9 @@ export function createSimulation(config: SimulationConfig): SimulationState {
   const shuffledCds = [...cds];
   for (let i = shuffledCds.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffledCds[i], shuffledCds[j]] = [shuffledCds[j], shuffledCds[i]]; }
   const cars: CarState[] = Array.from({ length: config.numCars }, (_, i) => {
-    const p = prs[i % prs.length], v = generateVoiture(i + 1, p, config.vehicleCategories), c = shuffledCds[i % shuffledCds.length];
+    const p = useRegistre ? registre![i % registre!.length].proprietaire : prs[i % prs.length];
+    const v = useRegistre ? registre![i % registre!.length].voiture : generateVoiture(i + 1, p, config.vehicleCategories);
+    const c = useRegistre ? registre![i % registre!.length].conducteur : shuffledCds[i % shuffledCds.length];
     let origin: { name: string; lat: number; lon: number };
     let destination: { name: string; lat: number; lon: number };
     // Chef-lieu de commune obligatoire : origine et destination toujours piochés dans NORTH_ALGERIA_CITIES (vrais points terrestres)
@@ -541,8 +601,11 @@ export function createSimulation(config: SimulationConfig): SimulationState {
 
   const history = new Map<string, { itineraire: Itineraire; carId: string }>();
   cars.forEach(c => history.set(c.itineraireActuel.id, { itineraire: c.itineraireActuel, carId: c.voiture.carId }));
+  // En mode registre, expose les vrais inscrits utilisés (stats/listes)
+  const statePrs = useRegistre ? [...new Map(cars.map(c => [c.voiture.proprietaire.nin, c.voiture.proprietaire])).values()] : prs;
+  const stateCds = useRegistre ? [...new Map(cars.map(c => [c.conducteurActuel.nin, c.conducteurActuel])).values()] : cds;
   const pending = getPendingCustomRoads();
-  const state: SimulationState = { sessionId: uuidv4(), config, cars, proprietaires: prs, conducteurs: cds, running: false, startedAt: Date.now(), simulatedElapsedSec: 0, footprintRecords: new Map(cars.map(c => [c.voiture.carId, []])), itinerairesHistory: history, infractions: [], lastInfractionAt: new Map(), lastFlushAt: Date.now(), totalRecordsSent: 0, intervalHandle: null, routeFetchQueue: new Set(), fetchingRoutes: false, customRoads: existingState?.customRoads || pending || null };
+  const state: SimulationState = { sessionId: uuidv4(), config, cars, proprietaires: statePrs, conducteurs: stateCds, running: false, startedAt: Date.now(), simulatedElapsedSec: 0, footprintRecords: new Map(cars.map(c => [c.voiture.carId, []])), itinerairesHistory: history, infractions: [], lastInfractionAt: new Map(), lastFlushAt: Date.now(), totalRecordsSent: 0, intervalHandle: null, routeFetchQueue: new Set(), fetchingRoutes: false, customRoads: existingState?.customRoads || pending || null };
   globalForSim.__simState = state;
   return state;
 }
