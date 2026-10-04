@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { infractionsConstatees } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
-import { getSimulation } from "@/lib/simulationManager";
-import { dispatchInfractions, resolveWilayaForPosition } from "@/lib/unites";
+import { resolveWilayaForPosition } from "@/lib/unites";
 
 export const dynamic = "force-dynamic";
 
@@ -52,13 +51,9 @@ export async function GET(req: NextRequest) {
   const format = searchParams.get("format") || "json";
   const limit = Math.min(2000, Math.max(1, Number(searchParams.get("limit") || 500)));
 
-  // 1. Dispatche d'abord la mémoire vers la DB (temps réel pour les unités)
-  try {
-    const state = getSimulation();
-    if (state?.infractions?.length) await dispatchInfractions(state.infractions as any);
-  } catch {}
-
-  // 2. Lit la DB persistée
+  // 1. PAS de dispatch ici (le tick s'en charge déjà en incrémental) :
+  // le faire à chaque lecture bloquait la réponse (N requêtes Neon avant de répondre).
+  // Lecture directe de la DB persistée.
   let rows: any[] = [];
   try {
     rows = await db.select().from(infractionsConstatees).orderBy(desc(infractionsConstatees.recordedAt)).limit(limit * 2);
