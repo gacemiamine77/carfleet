@@ -4,6 +4,8 @@ import { voitures, conducteurs, affectations } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getAuthProprio } from "@/lib/auth-proprio";
 
+export const dynamic = "force-dynamic";
+
 async function myCars(proprioId: number) {
   const rows = await db.select({ voiture: voitures }).from(voitures)
     .where(eq(voitures.proprietaireId, proprioId)).orderBy(desc(voitures.id));

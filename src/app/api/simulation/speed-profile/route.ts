@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSimulation } from "@/lib/simulationManager";
 import type { SpeedProfilePoint } from "@/lib/simulation";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   const state = getSimulation();
   if (!state) return NextResponse.json({ error: "No simulation" }, { status: 404 });

@@ -12,14 +12,19 @@ export async function POST() {
   const bufferStats = getBufferStats();
 
   // Envoi temps réel des nouvelles infractions vers les unités de sécurité (fire-and-forget)
+  // Erreur journalisée (visible dans les logs Render) + renvoyée pour diagnostic.
   let dispatched = 0;
+  let dispatchError: string | null = null;
   try {
     const { dispatchInfractions } = await import("@/lib/unites");
     if (state.infractions.length) {
       const r = await dispatchInfractions(state.infractions as any);
       dispatched = r.inserted;
     }
-  } catch {}
+  } catch (e: any) {
+    dispatchError = String(e?.message || e).slice(0, 300);
+    console.error("[dispatch-infractions]", dispatchError);
+  }
 
   const allTerminated = state.cars.length > 0 && state.cars.every((c) => c.status === "terminé" || c.status === "arrivée" || c.status === "termine");
   return NextResponse.json({
@@ -97,6 +102,7 @@ export async function POST() {
     infractions: await avecStatutsUnites([...state.infractions].sort((a,b)=> new Date(b.recordedAt).getTime()-new Date(a.recordedAt).getTime()).slice(0, 300)),
     infractionsCount: state.infractions.length,
     unitesDispatched: dispatched,
+    unitesDispatchError: dispatchError,
   });
 }
 

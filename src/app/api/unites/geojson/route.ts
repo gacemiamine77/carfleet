@@ -4,6 +4,8 @@ import { unitesSecurite } from "@/db/schema";
 import { ensureUnitesSeed } from "@/lib/unites";
 import { NORTH_ALGERIA_CITIES, WILAYA_CENTERS } from "@/lib/algeriaData";
 
+export const dynamic = "force-dynamic";
+
 const OSRM = [
   "https://router.project-osrm.org",
   "https://routing.openstreetmap.de/routed-car",

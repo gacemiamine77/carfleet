@@ -4,6 +4,8 @@ import { unitesSecurite, infractionsConstatees } from "@/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { ensureUnitesSeed } from "@/lib/unites";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/unites?codeWilaya=16&type=police → liste unités + compteurs
 export async function GET(req: NextRequest) {
   await ensureUnitesSeed();

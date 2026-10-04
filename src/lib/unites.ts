@@ -95,6 +95,8 @@ export async function dispatchInfractions(infractions: (SpeedInfraction & { cate
   if (dispatchedIds.size > 20000) dispatchedIds.clear();
   await ensureUnitesSeed();
   let inserted = 0;
+  let errors = 0;
+  let firstError: string | null = null;
   for (const inf of fresh) {
     try {
       const already = await db.select({ id: infractionsConstatees.id }).from(infractionsConstatees).where(eq(infractionsConstatees.externalId, inf.id)).limit(1);
@@ -121,7 +123,11 @@ export async function dispatchInfractions(infractions: (SpeedInfraction & { cate
         uniteId: unite[0]?.id ?? null, statut: "nouveau" as const, recordedAt: new Date(inf.recordedAt),
       } as any).onConflictDoNothing();
       inserted++;
-    } catch {}
+    } catch (e: any) {
+      errors++;
+      if (!firstError) firstError = String(e?.message || e).slice(0, 200);
+    }
   }
+  if (errors && !inserted) throw new Error(`dispatch: ${errors} erreurs (ex: ${firstError})`);
   return { inserted };
 }

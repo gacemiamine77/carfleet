@@ -9,6 +9,8 @@ import {
 } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 // GET - query stored tracking data (footprints joined with metadata)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

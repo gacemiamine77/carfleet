@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSimulation } from "@/lib/simulationManager";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const state = getSimulation();
   const stops = (state?.customRoads as any)?.stops || (state as any)?.__pendingCustomRoads?.stops || [];

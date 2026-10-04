@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSimulation } from "@/lib/simulationManager";
 import JSZip from "jszip";
 
+export const dynamic = "force-dynamic";
+
 // GET - Export current simulation data directly from memory (no DB needed)
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);

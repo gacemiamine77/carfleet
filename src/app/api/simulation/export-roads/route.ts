@@ -4,6 +4,8 @@ import JSZip from "jszip";
 // @ts-ignore - no types for shp-write
 import shpwrite from "@mapbox/shp-write";
 
+export const dynamic = "force-dynamic";
+
 // GET - export road network used by cars
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

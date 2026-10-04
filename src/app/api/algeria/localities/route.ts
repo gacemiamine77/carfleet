@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { NORTH_ALGERIA_CITIES, WILAYAS } from "@/lib/algeriaData";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const wilayasParam = searchParams.get("wilayas") || searchParams.get("wilaya") || "";

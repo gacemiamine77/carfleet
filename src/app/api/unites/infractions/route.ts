@@ -5,6 +5,8 @@ import { eq, desc, sql } from "drizzle-orm";
 import { getSimulation } from "@/lib/simulationManager";
 import { dispatchInfractions, resolveWilayaForPosition } from "@/lib/unites";
 
+export const dynamic = "force-dynamic";
+
 // Score de gravité (même formule côté Android pour le tri local)
 export function scoreGravite(infraction: string, exces: number | null): number {
   switch (infraction) {

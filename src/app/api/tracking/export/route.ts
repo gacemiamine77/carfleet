@@ -10,6 +10,8 @@ import {
 import { eq, desc } from "drizzle-orm";
 import JSZip from "jszip";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const format = searchParams.get("format") || "geojson";

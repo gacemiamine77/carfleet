@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCarRecords, getSimulation } from "@/lib/simulationManager";
 import { carFootprintToGeoJSON } from "@/lib/simulation";
 
+export const dynamic = "force-dynamic";
+
 // GET - download GeoJSON file for a specific car's footprint
 export async function GET(
   _req: NextRequest,

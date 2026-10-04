@@ -4,6 +4,8 @@ import { footprints, voitures, itineraires, conducteurs, proprietaires, simulati
 import { eq, sql, desc } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
+export const dynamic = "force-dynamic";
+
 // POST - receive external tracking data (GPS devices, other computer)
 // Body: { carId|vehicle_id, lat, lon, speed?, heading?, fuel?, recordedAt|timestamp?, sessionId? } ou { cars: [...] }
 export async function POST(req: NextRequest) {

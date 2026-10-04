@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { voitures, proprietaires, conducteurs, affectations, comptesProprietaires } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/admin/vehicules-inscrits — tous les véhicules du registre
 // (propriétaires INSCRITS avec compte + chauffeur désigné). Pour l'onglet plateforme.
 export async function GET() {

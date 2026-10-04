@@ -4,6 +4,8 @@ import { voitures, itineraires, footprints } from "@/db/schema";
 import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { getAuthProprio } from "@/lib/auth-proprio";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/proprietaires/stats?carId=&groupby=jour|mois&debut=2026-09-01&fin=2026-09-30
 // Km (Σ max-min distanceCumulee par itinéraire et par jour, /1000), nb trajets, vitesse moyenne.
 export async function GET(req: NextRequest) {

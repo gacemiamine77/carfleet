@@ -12,6 +12,8 @@ import { db } from "@/db";
 import { voitures, footprints } from "@/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 // GET - get current simulation state
 export async function GET() {
   const state = getSimulation();

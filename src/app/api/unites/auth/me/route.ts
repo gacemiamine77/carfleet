@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUnite } from "@/lib/auth-unites";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/unites/auth/me (Authorization: Bearer <token>) → compte + unité
 export async function GET(req: NextRequest) {
   const auth = await getAuthUnite(req);

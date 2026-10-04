@@ -4,6 +4,8 @@ import { comptesUnites, sessionsUnites, unitesSecurite } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hashPassword } from "@/lib/auth-unites";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/unites/comptes → tous les comptes avec leur unité
 export async function GET() {
   try {

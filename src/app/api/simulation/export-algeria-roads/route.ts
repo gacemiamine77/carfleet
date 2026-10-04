@@ -6,6 +6,8 @@ import path from "path";
 // @ts-ignore
 import shpwrite from "@mapbox/shp-write";
 
+export const dynamic = "force-dynamic";
+
 // --- Solution originale: cache disque + réseau routier carrossable complet ---
 const CACHE_DIR = path.join(process.cwd(), "public", "data", "algeria-roads");
 const CAR_HIGHWAY = "motorway|trunk|primary|secondary|tertiary|residential|unclassified|service|living_street|trunk_link|primary_link|secondary_link";

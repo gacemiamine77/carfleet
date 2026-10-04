@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { vehicleCurrentPosition, voitures } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/tracking/live?carId=XXX — dernières positions (1 ligne/véhicule).
 // C'est CET endpoint que lisent la carte opérateur et les apps, jamais footprints en direct.
 export async function GET(req: NextRequest) {
