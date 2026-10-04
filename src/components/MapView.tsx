@@ -58,6 +58,7 @@ interface Props {
   onMapClick?: (lat: number, lon: number) => void;
   infractions?: InfractionPoint[];
   showInfractions?: boolean;
+  showTrails?: boolean;
 }
 
 function infractionColor(infraction: string): string {
@@ -66,9 +67,23 @@ function infractionColor(infraction: string): string {
     case "zone interdite": return "#d97706";
     case "circulation à contresens": return "#7c3aed";
     case "conduite longue sans arrêt": return "#92400e";
-    case "arrêt interdit":
+    case "arrêt interdit": return "#b91c1c";
     case "stationnement interdit": return "#ca8a04";
     default: return "#6b7280";
+  }
+}
+
+// Symbologie par type d'infraction (formes distinctes + légende)
+function infractionSymbol(infraction: string): { glyph: string; color: string; label: string } {
+  const color = infractionColor(infraction);
+  switch (infraction) {
+    case "exces de vitesse": return { glyph: "●", color, label: "Excès de vitesse" };
+    case "zone interdite": return { glyph: "■", color, label: "Zone interdite" };
+    case "circulation à contresens": return { glyph: "▲", color, label: "Contresens" };
+    case "conduite longue sans arrêt": return { glyph: "◆", color, label: "Conduite longue" };
+    case "arrêt interdit": return { glyph: "⬇", color, label: "Arrêt interdit" };
+    case "stationnement interdit": return { glyph: "🅿", color, label: "Stationnement interdit" };
+    default: return { glyph: "○", color, label: "À comparer" };
   }
 }
 
@@ -143,7 +158,7 @@ function carIcon(color: string, heading: number, selected: boolean): L.DivIcon {
   });
 }
 
-export default function MapView({ geojson, selectedCar, onSelectCar, trails, carRoutes, carSpeeds, customRoads, onMapClick, infractions, showInfractions }: Props) {
+export default function MapView({ geojson, selectedCar, onSelectCar, trails, carRoutes, carSpeeds, customRoads, onMapClick, infractions, showInfractions, showTrails = true }: Props) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
@@ -341,10 +356,16 @@ export default function MapView({ geojson, selectedCar, onSelectCar, trails, car
     }
   }, [geojson, selectedCar, onSelectCar]);
 
-  // Update trails (breadcrumb path)
+  // Update trails (breadcrumb path) — masquables via showTrails
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+
+    if (!showTrails) {
+      for (const [, line] of trailLinesRef.current) line.remove();
+      trailLinesRef.current.clear();
+      return;
+    }
 
     for (const [carId, points] of trails) {
       if (!Array.isArray(points) || points.length < 2) continue;
@@ -387,7 +408,7 @@ export default function MapView({ geojson, selectedCar, onSelectCar, trails, car
         trailLinesRef.current.delete(carId);
       }
     }
-  }, [trails, geojson]);
+  }, [trails, geojson, showTrails]);
 
   // Update planned route lines (dashed, only for selected car or all)
   useEffect(() => {
@@ -466,7 +487,7 @@ export default function MapView({ geojson, selectedCar, onSelectCar, trails, car
     map.panTo([lat, lon] as L.LatLngExpression, { animate: true, duration: 0.5 });
   }, [selectedCar, geojson]);
 
-  // Infractions sur la carte (affichable/masquable, max 500 points)
+  // Infractions sur la carte (affichable/masquable, max 1000 points) + légende par type
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -475,18 +496,26 @@ export default function MapView({ geojson, selectedCar, onSelectCar, trails, car
     }
     const layer = infractionsLayerRef.current;
     layer.clearLayers();
+    // Retire l'ancienne légende
+    document.querySelectorAll(".inf-legend").forEach((el) => el.remove());
     if (!showInfractions || !infractions?.length) return;
-    for (const inf of infractions.slice(0, 500)) {
+    const counts = new Map<string, number>();
+    for (const inf of infractions.slice(0, 1000)) {
       if (!Number.isFinite(inf.lat) || !Number.isFinite(inf.lon)) continue;
       const st = inf.statut || "nouveau";
+      counts.set(inf.infraction, (counts.get(inf.infraction) || 0) + 1);
+      const sym = infractionSymbol(inf.infraction);
       const statutTxt = st === "traite" ? "✅ Traité" : st === "notifie" ? "Notifié" : "Nouveau";
       const dateTxt = inf.recordedAt ? new Date(inf.recordedAt).toLocaleString("fr-DZ") : "";
-      L.circleMarker([inf.lat, inf.lon], {
-        radius: 7, color: infractionColor(inf.infraction), weight: 2,
-        fillColor: infractionColor(inf.infraction), fillOpacity: st === "traite" ? 0.35 : 0.85,
-      }).bindPopup(
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="font-size:20px;line-height:20px;color:${sym.color};opacity:${st === "traite" ? 0.45 : 1};text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff;">${sym.glyph}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+      L.marker([inf.lat, inf.lon], { icon }).bindPopup(
         `<div style="font-size:12px;min-width:180px;">
-          <b>🚨 ${inf.infraction}</b><br/>
+          <b>${sym.glyph} ${inf.infraction}</b><br/>
           🚗 ${inf.immatriculation || inf.carId || "?"}${inf.conducteurNom ? `<br/>🧑‍✈️ ${inf.conducteurNom}` : ""}
           ${inf.speed != null ? `<br/>Vitesse: <b>${inf.speed} km/h</b>${inf.speedLimit != null && inf.speedLimit !== 9999 ? ` (limite ${inf.speedLimit})` : ""}` : ""}
           <br/>Statut: <b>${statutTxt}</b>
@@ -494,6 +523,20 @@ export default function MapView({ geojson, selectedCar, onSelectCar, trails, car
         </div>`
       ).addTo(layer);
     }
+    // Légende : un symbole par type + compteur (diagnostic : si 0 partout, les données n'arrivent pas)
+    const legend = new L.Control({ position: "bottomleft" });
+    legend.onAdd = () => {
+      const div = L.DomUtil.create("div", "inf-legend");
+      div.style.cssText = "background:rgba(255,255,255,0.95);border:1px solid #ccc;border-radius:8px;padding:6px 8px;font-size:11px;box-shadow:0 1px 4px rgba(0,0,0,0.3);";
+      let html = `<b>🚨 Infractions (${[...counts.values()].reduce((a, b) => a + b, 0)})</b><br/>`;
+      for (const [type, n] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
+        const sym = infractionSymbol(type);
+        html += `<div><span style="color:${sym.color};font-size:14px;">${sym.glyph}</span> ${sym.label} <b>(${n})</b></div>`;
+      }
+      div.innerHTML = html;
+      return div;
+    };
+    legend.addTo(map);
   }, [infractions, showInfractions]);
 
   return (

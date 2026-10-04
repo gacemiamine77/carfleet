@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 
 interface Infraction {
   id: string; carId: string; immatriculation: string; conducteurNom: string;
@@ -15,6 +15,7 @@ interface Props {
   infractions: Infraction[];
   onSelectCar?: (carId: string) => void;
   onClear?: () => void;
+  onDisplayChange?: (list: Infraction[]) => void;
 }
 
 function ModeToggle({ showBase, setShowBase, loading, onRefresh }: { showBase: boolean; setShowBase: (v: boolean) => void; loading: boolean; onRefresh: () => void }) {
@@ -35,7 +36,9 @@ function matchNom(i: { immatriculation?: string; carId?: string; conducteurNom?:
     (i.conducteurNom || "").toLowerCase().includes(q);
 }
 
-export default function InfractionsList({ infractions, onSelectCar, onClear }: Props) {
+export default function InfractionsList({ infractions, onSelectCar, onClear, onDisplayChange }: Props) {
+  const displayCb = useRef(onDisplayChange);
+  displayCb.current = onDisplayChange;
   const [filterInfraction, setFilterInfraction] = useState<string>("all");
   const [filterConducteur, setFilterConducteur] = useState<string>("all");
   const [filterStatut, setFilterStatut] = useState<string>("all");
@@ -83,6 +86,12 @@ export default function InfractionsList({ infractions, onSelectCar, onClear }: P
       return true;
     });
   }, [source, filterInfraction, filterConducteur, filterStatut, filterPeriode, filterJour, filterPlaque]);
+
+  // Remonte la liste affichée (session ou historique + filtres) pour la carte.
+  // AVANT tout return anticipé (règles des hooks) ; notifie aussi le cas vide.
+  useEffect(() => {
+    displayCb.current?.(filteredSrc);
+  }, [filteredSrc]);
 
   if (!source || source.length === 0) {
     return (

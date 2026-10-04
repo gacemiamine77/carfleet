@@ -95,6 +95,8 @@ export default function Home() {
   const [initLoading, setInitLoading] = useState(false);
   const [infractions, setInfractions] = useState<any[]>([]);
   const [showInfractions, setShowInfractions] = useState(true);
+  const [showTrails, setShowTrails] = useState(true);
+  const [mapInfractions, setMapInfractions] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<"carte" | "infractions" | "panneaux" | "unites">("carte");
   const [customRoads, setCustomRoads] = useState<any>(null);
   const [selectingItineraryFor, setSelectingItineraryFor] = useState<string | null>(null);
@@ -418,10 +420,16 @@ export default function Home() {
 
         {/* Map */}
         <main className="flex-1 relative">
-          <label className="absolute top-2 right-2 z-[1000] bg-white/95 border shadow rounded-lg px-2.5 py-1.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer">
-            <input type="checkbox" checked={showInfractions} onChange={e=>setShowInfractions(e.target.checked)} />
-            🚨 Infractions ({infractions.length})
-          </label>
+          <div className="absolute top-2 right-2 z-[1000] bg-white/95 border shadow rounded-lg px-2.5 py-1.5 text-xs font-medium flex items-center gap-3">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={showInfractions} onChange={e=>setShowInfractions(e.target.checked)} />
+              🚨 Infractions ({mapInfractions.length})
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={showTrails} onChange={e=>setShowTrails(e.target.checked)} />
+              🧭 Footprints
+            </label>
+          </div>
           {selectingItineraryFor && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-sky-600 text-white text-xs px-3 py-1.5 rounded-full shadow">
               {pendingItinerary?.origin ? `📍 Clique l'arrivée pour ${selectingItineraryFor}` : `📍 Clique le départ pour ${selectingItineraryFor} — ou Annuler`}
@@ -437,8 +445,9 @@ export default function Home() {
             carSpeeds={carSpeeds}
             customRoads={null}
             onMapClick={handleMapClick}
-            infractions={infractions}
+            infractions={mapInfractions}
             showInfractions={showInfractions}
+            showTrails={showTrails}
           />
         </main>
 
@@ -459,6 +468,7 @@ export default function Home() {
           infractions={infractions}
           onSelectCar={(carId)=> { setSelectedCar(carId); setActiveTab("carte"); }}
           onClear={async () => { await fetch("/api/simulation/infractions", { method: "DELETE" }); setInfractions([]); }}
+          onDisplayChange={setMapInfractions}
         />
       </div>
       <div className={`flex-1 overflow-auto p-4 space-y-4 ${activeTab!=="panneaux" ? "hidden" : ""}`}>
