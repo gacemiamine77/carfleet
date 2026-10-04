@@ -41,6 +41,12 @@ interface RouteInfo {
   destination: string;
 }
 
+interface InfractionPoint {
+  id: string; infraction: string; immatriculation?: string; carId?: string; conducteurNom?: string;
+  lat: number; lon: number; speed?: number; speedLimit?: number;
+  statut?: string; recordedAt?: string;
+}
+
 interface Props {
   geojson: { type: "FeatureCollection"; features: CarFeature[] } | null;
   selectedCar: string | null;
@@ -50,6 +56,20 @@ interface Props {
   carSpeeds?: Record<string, number[]>; // Historique des vitesses
   customRoads?: { features: { geometry: { type: "LineString"; coordinates: [number, number][] }; properties: any }[] } | null;
   onMapClick?: (lat: number, lon: number) => void;
+  infractions?: InfractionPoint[];
+  showInfractions?: boolean;
+}
+
+function infractionColor(infraction: string): string {
+  switch (infraction) {
+    case "exces de vitesse": return "#dc2626";
+    case "zone interdite": return "#d97706";
+    case "circulation à contresens": return "#7c3aed";
+    case "conduite longue sans arrêt": return "#92400e";
+    case "arrêt interdit":
+    case "stationnement interdit": return "#ca8a04";
+    default: return "#6b7280";
+  }
 }
 
 // Fonction pour générer un graphique de vitesse en SVG
@@ -123,13 +143,14 @@ function carIcon(color: string, heading: number, selected: boolean): L.DivIcon {
   });
 }
 
-export default function MapView({ geojson, selectedCar, onSelectCar, trails, carRoutes, carSpeeds, customRoads, onMapClick }: Props) {
+export default function MapView({ geojson, selectedCar, onSelectCar, trails, carRoutes, carSpeeds, customRoads, onMapClick, infractions, showInfractions }: Props) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
   const trailLinesRef = useRef<Map<string, L.Polyline>>(new Map());
   const routeLinesRef = useRef<Map<string, L.Polyline>>(new Map());
   const customRoadsRef = useRef<L.Polyline[]>([]);
+  const infractionsLayerRef = useRef<L.LayerGroup | null>(null);
   const onMapClickRef = useRef(onMapClick);
   useEffect(()=>{ onMapClickRef.current = onMapClick; }, [onMapClick]);
 
@@ -444,6 +465,36 @@ export default function MapView({ geojson, selectedCar, onSelectCar, trails, car
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
     map.panTo([lat, lon] as L.LatLngExpression, { animate: true, duration: 0.5 });
   }, [selectedCar, geojson]);
+
+  // Infractions sur la carte (affichable/masquable, max 500 points)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!infractionsLayerRef.current) {
+      infractionsLayerRef.current = L.layerGroup().addTo(map);
+    }
+    const layer = infractionsLayerRef.current;
+    layer.clearLayers();
+    if (!showInfractions || !infractions?.length) return;
+    for (const inf of infractions.slice(0, 500)) {
+      if (!Number.isFinite(inf.lat) || !Number.isFinite(inf.lon)) continue;
+      const st = inf.statut || "nouveau";
+      const statutTxt = st === "traite" ? "✅ Traité" : st === "notifie" ? "Notifié" : "Nouveau";
+      const dateTxt = inf.recordedAt ? new Date(inf.recordedAt).toLocaleString("fr-DZ") : "";
+      L.circleMarker([inf.lat, inf.lon], {
+        radius: 7, color: infractionColor(inf.infraction), weight: 2,
+        fillColor: infractionColor(inf.infraction), fillOpacity: st === "traite" ? 0.35 : 0.85,
+      }).bindPopup(
+        `<div style="font-size:12px;min-width:180px;">
+          <b>🚨 ${inf.infraction}</b><br/>
+          🚗 ${inf.immatriculation || inf.carId || "?"}${inf.conducteurNom ? `<br/>🧑‍✈️ ${inf.conducteurNom}` : ""}
+          ${inf.speed != null ? `<br/>Vitesse: <b>${inf.speed} km/h</b>${inf.speedLimit != null && inf.speedLimit !== 9999 ? ` (limite ${inf.speedLimit})` : ""}` : ""}
+          <br/>Statut: <b>${statutTxt}</b>
+          ${dateTxt ? `<br/>${dateTxt}` : ""}
+        </div>`
+      ).addTo(layer);
+    }
+  }, [infractions, showInfractions]);
 
   return (
     <div

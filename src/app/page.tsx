@@ -94,6 +94,7 @@ export default function Home() {
   const [carRoutes, setCarRoutes] = useState<Record<string, RouteInfo>>({});
   const [initLoading, setInitLoading] = useState(false);
   const [infractions, setInfractions] = useState<any[]>([]);
+  const [showInfractions, setShowInfractions] = useState(true);
   const [activeTab, setActiveTab] = useState<"carte" | "infractions" | "panneaux" | "unites">("carte");
   const [customRoads, setCustomRoads] = useState<any>(null);
   const [selectingItineraryFor, setSelectingItineraryFor] = useState<string | null>(null);
@@ -417,6 +418,10 @@ export default function Home() {
 
         {/* Map */}
         <main className="flex-1 relative">
+          <label className="absolute top-2 right-2 z-[1000] bg-white/95 border shadow rounded-lg px-2.5 py-1.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" checked={showInfractions} onChange={e=>setShowInfractions(e.target.checked)} />
+            🚨 Infractions ({infractions.length})
+          </label>
           {selectingItineraryFor && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-sky-600 text-white text-xs px-3 py-1.5 rounded-full shadow">
               {pendingItinerary?.origin ? `📍 Clique l'arrivée pour ${selectingItineraryFor}` : `📍 Clique le départ pour ${selectingItineraryFor} — ou Annuler`}
@@ -432,6 +437,8 @@ export default function Home() {
             carSpeeds={carSpeeds}
             customRoads={null}
             onMapClick={handleMapClick}
+            infractions={infractions}
+            showInfractions={showInfractions}
           />
         </main>
 

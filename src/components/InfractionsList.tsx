@@ -65,26 +65,6 @@ export default function InfractionsList({ infractions, onSelectCar, onClear }: P
     setBaseLoading(false);
   };
 
-  const conducteurs = useMemo(() => [...new Set(infractions.map(i => i.conducteurNom))].sort(), [infractions]);
-  const infractionsTypes = useMemo(() => [...new Set(infractions.map(i => i.infraction))].sort(), [infractions]);
-
-  const dayOf = (iso: string) => (iso || "").slice(0, 10);
-  const filtered = useMemo(() => {
-    const now = Date.now(), dayMs = 86400_000;
-    const q = filterPlaque.trim().toLowerCase();
-    return infractions.filter(i => {
-      if (filterInfraction !== "all" && i.infraction !== filterInfraction) return false;
-      if (filterConducteur !== "all" && i.conducteurNom !== filterConducteur) return false;
-      if (filterStatut !== "all" && (i.statut || "nouveau") !== filterStatut) return false;
-      if (q && !matchNom(i, q)) return false;
-      if (filterJour) { if (dayOf(i.recordedAt) !== filterJour) return false; }
-      else if (filterPeriode === "today") { if (dayOf(i.recordedAt) !== dayOf(new Date(now).toISOString())) return false; }
-      else if (filterPeriode === "7d") { if (new Date(i.recordedAt).getTime() < now - 7 * dayMs) return false; }
-      else if (filterPeriode === "30d") { if (new Date(i.recordedAt).getTime() < now - 30 * dayMs) return false; }
-      return true;
-    });
-  }, [infractions, filterInfraction, filterConducteur, filterStatut, filterPeriode, filterJour, filterPlaque]);
-
   const source = showBase ? baseRows : infractions;
   const conducteursSrc = useMemo(() => [...new Set(source.map(i => i.conducteurNom))].sort(), [source]);
   const typesSrc = useMemo(() => [...new Set(source.map(i => i.infraction))].sort(), [source]);
