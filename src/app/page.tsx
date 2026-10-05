@@ -94,7 +94,6 @@ export default function Home() {
   const [carSpeeds, setCarSpeeds] = useState<Record<string, number[]>>({});
   const [carRoutes, setCarRoutes] = useState<Record<string, RouteInfo>>({});
   const [initLoading, setInitLoading] = useState(false);
-  const [infractions, setInfractions] = useState<any[]>([]);
   const [showInfractions, setShowInfractions] = useState(true);
   const [showTrails, setShowTrails] = useState(true);
   const [mapInfractions, setMapInfractions] = useState<any[]>([]);
@@ -255,7 +254,6 @@ export default function Home() {
             tickData.bufferStats ?? { totalRecords: 0, sizeKb: 0, elapsedMinutes: 0 }
           );
           setTotalInDb(tickData.totalRecordsSentToDb ?? 0);
-          if (tickData.infractions) setInfractions(tickData.infractions);
           if (tickData.customRoads) setCustomRoads(tickData.customRoads);
           if (tickData.carRoutes) {
             setCarRoutes(tickData.carRoutes);
@@ -400,7 +398,7 @@ export default function Home() {
       {/* Tabs */}
       <div className="flex gap-2 px-4 pt-2 flex-shrink-0">
         <button onClick={() => setActiveTab("carte")} className={`px-4 py-1.5 rounded-t-lg text-sm font-semibold ${activeTab==="carte" ? "bg-white shadow text-emerald-700 border" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>🗺️ Carte</button>
-        <button onClick={() => setActiveTab("infractions")} className={`px-4 py-1.5 rounded-t-lg text-sm font-semibold flex items-center gap-2 ${activeTab==="infractions" ? "bg-white shadow text-red-700 border" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>🚨 Infractions {infractions.length>0 && <span className="bg-red-600 text-white text-xs px-1.5 py-0.5 rounded-full">{infractions.length}</span>}</button>
+        <button onClick={() => setActiveTab("infractions")} className={`px-4 py-1.5 rounded-t-lg text-sm font-semibold flex items-center gap-2 ${activeTab==="infractions" ? "bg-white shadow text-red-700 border" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>🚨 Infractions {mapInfractions.length>0 && <span className="bg-red-600 text-white text-xs px-1.5 py-0.5 rounded-full">{mapInfractions.length}</span>}</button>
         <button onClick={() => setActiveTab("panneaux")} className={`px-4 py-1.5 rounded-t-lg text-sm font-semibold ${activeTab==="panneaux" ? "bg-white shadow text-amber-700 border" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>🛑 Panneaux</button>
         <button onClick={() => setActiveTab("unites")} className={`px-4 py-1.5 rounded-t-lg text-sm font-semibold flex items-center gap-2 ${activeTab==="unites" ? "bg-white shadow text-blue-800 border" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>🚓 Unités {unites.length>0 && <span className="bg-blue-700 text-white text-xs px-1.5 py-0.5 rounded-full">{unites.length}</span>}</button>
         <button onClick={() => setActiveTab("vehicules")} className={`px-4 py-1.5 rounded-t-lg text-sm font-semibold flex items-center gap-2 ${activeTab==="vehicules" ? "bg-white shadow text-emerald-800 border" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>🚙 Inscrites {vehiculesInscrits.length>0 && <span className="bg-emerald-700 text-white text-xs px-1.5 py-0.5 rounded-full">{vehiculesInscrits.length}</span>}</button>
@@ -478,9 +476,7 @@ export default function Home() {
       </div>
       <div className={`flex-1 overflow-auto p-4 ${activeTab!=="infractions" ? "hidden" : ""}`}>
         <InfractionsList
-          infractions={infractions}
           onSelectCar={(carId)=> { setSelectedCar(carId); setActiveTab("carte"); }}
-          onClear={async () => { await fetch("/api/simulation/infractions", { method: "DELETE" }); setInfractions([]); }}
           onDisplayChange={setMapInfractions}
         />
       </div>
