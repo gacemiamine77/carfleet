@@ -43,13 +43,13 @@ th{background:#f8fafc}
   <div id="regFields" class="hidden">
     <div class="grid2">
       <label>Type<select id="r_type"><option value="physique">Personne physique</option><option value="morale">Entreprise</option></select></label>
-      <label>Téléphone*<input id="r_tel" placeholder="+213 ..."></label>
-      <label>Nom<input id="r_nom" placeholder="Nom de famille"></label>
-      <label>Prénom<input id="r_prenom"></label>
-      <label>Raison sociale (entreprise)<input id="r_rs"></label>
-      <label>Wilaya<input id="r_wilaya" placeholder="Alger"></label>
-      <label>NIN (optionnel)<input id="r_nin"></label>
-      <label>Commune<input id="r_commune"></label>
+      <label>Téléphone*<input id="r_tel" placeholder="+213 ..." autocomplete="off"></label>
+      <label>Nom<input id="r_nom" placeholder="Nom de famille" autocomplete="off"></label>
+      <label>Prénom<input id="r_prenom" autocomplete="off"></label>
+      <label>Raison sociale (entreprise)<input id="r_rs" autocomplete="off"></label>
+      <label>Wilaya<input id="r_wilaya" placeholder="Alger" autocomplete="off"></label>
+      <label>NIN (optionnel)<input id="r_nin" autocomplete="off"></label>
+      <label>Commune<input id="r_commune" autocomplete="off"></label>
     </div>
   </div>
   <label>URL plateforme<input id="url" value="http://192.168.0.2:3000"></label>
@@ -69,9 +69,9 @@ th{background:#f8fafc}
   <div id="vehList"></div>
   <h3 style="margin-top:10px">➕ Ajouter un véhicule</h3>
   <div class="grid2">
-    <label>Immatriculation*<input id="v_immat" placeholder="12345-678-16"></label>
-    <label>Marque<input id="v_marque" placeholder="Renault"></label>
-    <label>Modèle<input id="v_modele" placeholder="Symbol"></label>
+    <label>Immatriculation*<input id="v_immat" placeholder="12345-678-16" autocomplete="off"></label>
+    <label>Marque<input id="v_marque" placeholder="Renault" autocomplete="off"></label>
+    <label>Modèle<input id="v_modele" placeholder="Symbol" autocomplete="off"></label>
     <label>Catégorie<select id="v_cat"><option value="leger">Léger</option><option value="lourd">Lourd</option><option value="transport">Transport</option><option value="transport_dangereux">Dangereux</option><option value="convoi_exceptionnel">Convoi exceptionnel</option></select></label>
     <label>Hauteur (m)<input id="v_h" type="number" step="0.1"></label>
     <label>Largeur (m)<input id="v_l" type="number" step="0.1"></label>
@@ -80,11 +80,11 @@ th{background:#f8fafc}
   <h3 style="margin-top:10px">🧑‍✈️ Désigner un chauffeur</h3>
   <div class="grid2">
     <label>Véhicule<select id="c_veh"></select></label>
-    <label>Nom*<input id="c_nom"></label>
-    <label>Prénom*<input id="c_prenom"></label>
-    <label>Tél chauffeur*<input id="c_tel"></label>
-    <label>N° permis<input id="c_permis"></label>
-    <label>Wilaya<input id="c_wilaya"></label>
+    <label>Nom*<input id="c_nom" autocomplete="off"></label>
+    <label>Prénom*<input id="c_prenom" autocomplete="off"></label>
+    <label>Tél chauffeur*<input id="c_tel" autocomplete="off"></label>
+    <label>N° permis<input id="c_permis" autocomplete="off"></label>
+    <label>Wilaya<input id="c_wilaya" autocomplete="off"></label>
   </div>
   <button onclick="addCh()">Désigner</button>
 </div>

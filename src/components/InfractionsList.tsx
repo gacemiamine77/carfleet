@@ -1,6 +1,11 @@
 "use client";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import InfractionsMiniMap from "./InfractionsMiniMap";
+import dynamic from "next/dynamic";
+
+const InfractionsMiniMap = dynamic(() => import("./InfractionsMiniMap"), {
+  ssr: false,
+  loading: () => <div className="w-full rounded-xl border border-gray-200 bg-gray-50 text-xs text-gray-400 flex items-center justify-center" style={{ height: "300px" }}>🗺️ Chargement de la mini-carte…</div>,
+});
 
 // "Impossible de comparée" n'est plus une infraction (limite OSM inconnue) :
 // ni créée (simulationManager), ni persistée (dispatch), ni affichée ici.

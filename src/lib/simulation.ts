@@ -252,12 +252,12 @@ export function carsToGeoJSON(cars: CarState[]): GeoJSON.FeatureCollection {
       geometry: { type: "Point" as const, coordinates: [car.lon, car.lat] },
       properties: {
         carId: car.voiture.carId, immatriculation: car.voiture.immatriculation, marque: car.voiture.marque, modele: car.voiture.modele,
-        couleurVoiture: car.voiture.couleur, typeVehicule: "Véhicule Léger", 
-        proprietaireNom: car.voiture.proprietaire.type === "physique" ? `${car.voiture.proprietaire.prenom} ${car.voiture.proprietaire.nom}` : car.voiture.proprietaire.raisonSociale,
-        proprietaireTel: car.voiture.proprietaire.telephone, conducteurNom: `${car.conducteurActuel.prenom} ${car.conducteurActuel.nom}`, conducteurTel: car.conducteurActuel.telephone,
-        conducteurPermis: car.conducteurActuel.numeroPermis, conducteurProfil: car.conducteurActuel.profil, originCity: car.originCity, destinationCity: car.destinationCity,
-        speed: car.speed, acceleration: car.acceleration, heading: car.heading, distanceKm: car.itineraireActuel.distanceKm, status: car.status, color: car.voiture.mapColor,
-        routeProgress: car.routePoints.length > 0 ? Math.round((car.routeIndex / Math.max(1, car.routePoints.length - 1)) * 100) : 0,
+        couleurVoiture: car.voiture.couleur, typeVehicule: "Véhicule Léger",
+        proprietaireNom: car.voiture.proprietaire?.type === "physique" ? `${car.voiture.proprietaire.prenom || ""} ${car.voiture.proprietaire.nom || ""}`.trim() || "Externe" : (car.voiture.proprietaire?.raisonSociale || "Externe"),
+        proprietaireTel: car.voiture.proprietaire?.telephone || "", conducteurNom: `${car.conducteurActuel?.prenom || ""} ${car.conducteurActuel?.nom || ""}`.trim() || "Externe", conducteurTel: car.conducteurActuel?.telephone || "",
+        conducteurPermis: car.conducteurActuel?.numeroPermis || "", conducteurProfil: car.conducteurActuel?.profil || "normal", originCity: car.originCity, destinationCity: car.destinationCity,
+        speed: car.speed, acceleration: car.acceleration, heading: car.heading, distanceKm: car.itineraireActuel?.distanceKm || 0, status: car.status, color: car.voiture.mapColor,
+        routeProgress: car.routePoints?.length > 0 ? Math.round((car.routeIndex / Math.max(1, car.routePoints.length - 1)) * 100) : 0,
       },
     })),
   };

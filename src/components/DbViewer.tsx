@@ -150,6 +150,9 @@ export default function DbViewer({ isOpen, onClose }: { isOpen: boolean; onClose
             <input
               type="text"
               placeholder="Filtrer par Car ID (ex: CAR-001)"
+              autoComplete="off"
+              name="db-filter-car"
+              spellCheck={false}
               value={filterCar}
               onChange={(e) => {
                 setFilterCar(e.target.value);

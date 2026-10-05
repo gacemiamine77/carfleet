@@ -53,9 +53,10 @@ export async function GET() {
         }
       } catch {}
       allCarsForMap.push({
-        voiture: { carId: ec.carId, immatriculation: ec.immat || ec.carId, marque: ec.marque || "Externe", modele: "Sim", couleur: "Gris", mapColor: "#ff6b35" } as any,
-        lat: ec.lat, lon: ec.lon, speed: ec.speed || 0, heading: ec.heading || 0, status: "en route",
-        originCity: oCity, destinationCity: dCity, routePoints: [], itineraireActuel: { id: "ext", villeDepart: oCity, villeArrivee: dCity } as any,
+        voiture: { carId: ec.carId, immatriculation: ec.immat || ec.carId, marque: ec.marque || "Externe", modele: "Sim", couleur: "Gris", mapColor: "#ff6b35", proprietaire: { type: "physique", prenom: "Externe", nom: "", telephone: "" } } as any,
+        conducteurActuel: { prenom: "Externe", nom: "", telephone: "", numeroPermis: "", profil: "normal" } as any,
+        lat: ec.lat, lon: ec.lon, speed: ec.speed || 0, heading: ec.heading || 0, acceleration: 0, status: "en route",
+        originCity: oCity, destinationCity: dCity, routePoints: [], routeIndex: 0, itineraireActuel: { id: "ext", villeDepart: oCity, villeArrivee: dCity, distanceKm: 0 } as any,
       } as any);
     }
   }
