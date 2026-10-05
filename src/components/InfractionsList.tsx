@@ -71,7 +71,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
       if (filterInfraction !== "all") params.set("infraction", filterInfraction);
       if (filterStatut !== "all") params.set("statut", filterStatut);
       if (filterPlaque.trim()) params.set("q", filterPlaque.trim());
-      const r = await fetch(`/api/unites/infractions?${params.toString()}`);
+      const r = await fetch(`/api/unites/infractions?${params.toString()}`, { cache: "no-store" });
       const d = await r.json();
       const mapped: Infraction[] = (d.infractions || []).map((x: any) => ({
         id: String(x.externalId || x.id), carId: x.carId || "", immatriculation: x.immatriculation || "",
