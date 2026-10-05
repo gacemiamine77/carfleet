@@ -63,6 +63,33 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
   const [filterPeriode, setFilterPeriode] = useState<string>("all"); // historique uniquement
   const [filterJour, setFilterJour] = useState<string>("");
   const [filterPlaque, setFilterPlaque] = useState<string>("");
+  const [filterTranche, setFilterTranche] = useState<string>("all"); // all|matin|aprem|soir|nuit|perso
+  const [filterH1, setFilterH1] = useState<string>("");
+  const [filterH2, setFilterH2] = useState<string>("");
+
+  const heureDe = (iso: string) => {
+    const d = new Date(iso);
+    return d.getHours() + d.getMinutes() / 60;
+  };
+  const dansTranche = (iso: string): boolean => {
+    if (filterTranche === "all") return true;
+    const h = heureDe(iso);
+    const inRange = (a: number, b: number) => (a <= b ? h >= a && h < b : h >= a || h < b);
+    switch (filterTranche) {
+      case "matin": return inRange(6, 12);
+      case "aprem": return inRange(12, 18);
+      case "soir": return inRange(18, 24);
+      case "nuit": return inRange(0, 6);
+      case "perso": {
+        if (!filterH1 || !filterH2) return true;
+        const [a1, b1] = filterH1.split(":").map(Number);
+        const [a2, b2] = filterH2.split(":").map(Number);
+        if (![a1, b1, a2, b2].every(Number.isFinite)) return true;
+        return inRange(a1 + b1 / 60, a2 + b2 / 60);
+      }
+      default: return true;
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,15 +121,14 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
     setLoadedOnce(true);
   }, [mode, filterInfraction, filterStatut, filterPeriode, filterJour, filterPlaque]);
 
-  // Rechargement à chaque changement de filtre/mode
-  useEffect(() => { load(); }, [load]);
-
-  // Rafraîchissement périodique léger : remplace l'ancien "état mémoire" pour donner
-  // un effet temps réel sans jamais faire de la mémoire la source de vérité.
+  // Allègement : AUCUN chargement automatique. L'utilisateur charge explicitement
+  // (bouton Charger / 🔄 / changement de mode), avec Auto-refresh OPT-IN ci-dessous.
+  const [autoOn, setAutoOn] = useState(false);
   useEffect(() => {
+    if (!autoOn) return;
     const t = setInterval(load, AUTO_REFRESH_MS);
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, autoOn]);
 
   const conducteursSrc = useMemo(() => [...new Set(rows.map(i => i.conducteurNom))].sort(), [rows]);
   const typesSrc = useMemo(() => [...new Set(rows.map(i => i.infraction))].filter((t) => !notAnInfraction(t)).sort(), [rows]);
@@ -111,12 +137,13 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
     const q = filterPlaque.trim().toLowerCase();
     return rows.filter(i => {
       if (notAnInfraction(i.infraction)) return false;
+      if (!dansTranche(i.recordedAt)) return false;
       if (filterConducteur !== "all" && i.conducteurNom !== filterConducteur) return false;
       if (q && !matchNom(i, q)) return false;
       if (mode === "historique" && filterJour && (i.recordedAt || "").slice(0, 10) !== filterJour) return false;
       return true;
     });
-  }, [rows, filterConducteur, filterPlaque, filterJour, mode]);
+  }, [rows, filterConducteur, filterPlaque, filterJour, mode, filterTranche, filterH1, filterH2]);
 
   // Remonte la liste affichée (session ou historique + filtres) pour la carte.
   useEffect(() => {
@@ -126,6 +153,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
   const resetFilters = () => {
     setFilterInfraction("all"); setFilterConducteur("all"); setFilterStatut("all");
     setFilterPeriode("all"); setFilterJour(""); setFilterPlaque("");
+    setFilterTranche("all"); setFilterH1(""); setFilterH2("");
   };
 
   const handleExport = () => {
@@ -139,11 +167,12 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
   };
 
   const hasActiveFilter = filterInfraction !== "all" || filterConducteur !== "all" || filterStatut !== "all" ||
-    (mode === "historique" && (filterPeriode !== "all" || !!filterJour)) || !!filterPlaque;
+    (mode === "historique" && (filterPeriode !== "all" || !!filterJour)) || !!filterPlaque || filterTranche !== "all";
 
   // Message du corps du tableau : jamais de changement de mise en page, seulement de contenu.
   let bodyMessage: string | null = null;
   if (!loadedOnce && loading) bodyMessage = "⏳ Chargement…";
+  else if (!loadedOnce) bodyMessage = "Cliquez « 🔍 Charger » pour afficher les infractions (aucun chargement automatique).";
   else if (rows.length === 0) bodyMessage = mode === "session" ? "Aucune infraction aujourd'hui." : "Aucune infraction en base pour ce filtre.";
   else if (filteredSrc.length === 0) bodyMessage = "Aucune infraction pour ce filtre (conducteur/jour).";
 
@@ -157,6 +186,10 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
           <h3 className="font-bold text-sm text-red-800">🚨 Infractions — {filteredSrc.length}/{rows.length}</h3>
           <div className="flex gap-2 items-center">
             <ModeToggle mode={mode} setMode={setMode} loading={loading} onRefresh={load} />
+            <button onClick={load} title="Charger les infractions avec les filtres courants"
+              className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded font-semibold">🔍 Charger</button>
+            <button onClick={() => setAutoOn((v) => !v)} title="Suivi temps réel (requête toutes les 8 s)"
+              className={`text-xs px-2 py-1 rounded border ${autoOn ? "bg-amber-500 text-white border-amber-500" : "bg-white hover:bg-red-50"}`}>⏱️ Auto: {autoOn ? "ON" : "OFF"}</button>
             <button onClick={handleExport} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded">⬇️ GeoJSON</button>
             {mode === "historique" && (
               <button onClick={async () => {
@@ -193,7 +226,22 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
               <option value="30d">30 jours</option>
             </select>
           )}
-          <input value={filterPlaque} onChange={e=>setFilterPlaque(e.target.value)} placeholder="🔍 Matricule, véhicule, nom…" className="text-xs border rounded px-2 py-1 bg-white w-40" />
+          <input value={filterPlaque} onChange={e=>setFilterPlaque(e.target.value)} placeholder="🔍 Matricule, véhicule, nom…" autoComplete="off" name="inf-search" spellCheck={false} className="text-xs border rounded px-2 py-1 bg-white w-40" />
+          <select value={filterTranche} onChange={e=>setFilterTranche(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white" title="Filtre horaire (heure locale)">
+            <option value="all">🕐 Toute heure</option>
+            <option value="matin">🌅 Matin (6h-12h)</option>
+            <option value="aprem">☀️ Après-midi (12h-18h)</option>
+            <option value="soir">🌆 Soir (18h-0h)</option>
+            <option value="nuit">🌙 Nuit (0h-6h)</option>
+            <option value="perso">⏱️ Plage perso…</option>
+          </select>
+          {filterTranche === "perso" && (
+            <>
+              <input type="time" value={filterH1} onChange={e=>setFilterH1(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white" />
+              <span className="text-xs text-gray-400">→</span>
+              <input type="time" value={filterH2} onChange={e=>setFilterH2(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white" />
+            </>
+          )}
           {hasActiveFilter && <button onClick={resetFilters} className="text-xs text-gray-500 underline">Réinitialiser</button>}
         </div>
         {mode === "historique" && (

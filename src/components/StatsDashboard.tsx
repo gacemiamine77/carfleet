@@ -7,6 +7,7 @@ interface CarInfo {
   distanceKm?: number;
   conducteurProfil?: string;
   routeProgress?: number;
+  categorieVehicule?: string;
 }
 
 interface Props {
@@ -20,39 +21,46 @@ export default function StatsDashboard({ cars }: Props) {
   const stoppedCars = cars.filter(c => isTerminated(c.status)).length;
   const idleCars = cars.filter(c => c.status !== "en route" && !isTerminated(c.status)).length;
 
-  const activeCars = cars.filter(c => c.status === "en route");
-  const avgSpeed = activeCars.length > 0 
-    ? Math.round(activeCars.reduce((acc, c) => acc + c.speed, 0) / activeCars.length) 
+  const avgProgress = totalCars > 0
+    ? Math.round(cars.reduce((acc, c) => acc + (c.routeProgress || 0), 0) / totalCars)
     : 0;
 
-  const totalDist = totalCars > 0 
-    ? Math.round(cars.reduce((acc, c) => acc + (c.distanceKm || 0), 0) * 10) / 10 
-    : 0;
-
-  const avgProgress = totalCars > 0 
-    ? Math.round(cars.reduce((acc, c) => acc + (c.routeProgress || 0), 0) / totalCars) 
-    : 0;
+  // Répartition par type de véhicule (%)
+  const CATS = [
+    { id: "leger", label: "Léger", emoji: "🚗" },
+    { id: "lourd", label: "Lourd", emoji: "🚚" },
+    { id: "transport", label: "Transport", emoji: "🚐" },
+    { id: "transport_dangereux", label: "Dangereux", emoji: "☢️" },
+    { id: "convoi_exceptionnel", label: "Convoi Exc.", emoji: "🚛" },
+    { id: "transport_personnel", label: "Personnel", emoji: "🚙" },
+  ];
+  const catCounts = CATS.map((c) => ({
+    ...c,
+    n: cars.filter((v) => (v.categorieVehicule || "leger") === c.id).length,
+  })).filter((c) => c.n > 0);
+  const pct = (n: number) => (totalCars > 0 ? Math.round((n / totalCars) * 100) : 0);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-      {/* Total Distance */}
-      <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-blue-500">
-        <div className="text-xs font-bold text-gray-500 uppercase">Distance Totale</div>
-        <div className="flex items-baseline gap-1">
-          <div className="text-2xl font-bold text-gray-800">{totalDist}</div>
-          <div className="text-sm text-gray-400 font-medium">km</div>
-        </div>
-        <div className="text-[10px] text-gray-400 mt-1">Cumul de la flotte en cours</div>
-      </div>
-
-      {/* Average Speed */}
-      <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-emerald-500">
-        <div className="text-xs font-bold text-gray-500 uppercase">Vitesse Moyenne</div>
-        <div className="flex items-baseline gap-1">
-          <div className="text-2xl font-bold text-gray-800">{avgSpeed}</div>
-          <div className="text-sm text-gray-400 font-medium">km/h</div>
-        </div>
-        <div className="text-[10px] text-gray-400 mt-1">Moyenne instantanée</div>
+      {/* Répartition par type de véhicule */}
+      <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-blue-500 md:col-span-2">
+        <div className="text-xs font-bold text-gray-500 uppercase">🚛 Types de véhicules ({totalCars})</div>
+        {catCounts.length === 0 ? (
+          <div className="text-xs text-gray-400 mt-2">Aucun véhicule</div>
+        ) : (
+          <div className="mt-2 space-y-1.5">
+            {catCounts.map((c) => (
+              <div key={c.id} className="flex items-center gap-2 text-xs">
+                <span className="w-28 truncate">{c.emoji} {c.label}</span>
+                <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct(c.n)}%` }} />
+                </div>
+                <span className="font-bold w-8 text-right">{c.n}</span>
+                <span className="text-gray-400 w-10 text-right">{pct(c.n)}%</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Status Breakdown */}
