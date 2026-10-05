@@ -104,6 +104,7 @@ export default function Home() {
   const [unites, setUnites] = useState<any[]>([]);
   const [vehiculesInscrits, setVehiculesInscrits] = useState<any[]>([]);
   const [searchVeh, setSearchVeh] = useState("");
+  const [searchVehRO, setSearchVehRO] = useState(true);
   const [comptes, setComptes] = useState<any[]>([]);
   const [cWilaya, setCWilaya] = useState("");
   const [cCorps, setCCorps] = useState("");
@@ -645,7 +646,7 @@ export default function Home() {
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <h3 className="font-bold text-sm">🚙 Véhicules inscrites — {vehiculesInscrits.length}</h3>
             <div className="flex gap-2">
-              <input value={searchVeh} onChange={e=>setSearchVeh(e.target.value)} placeholder="🔍 Immat, propriétaire, chauffeur…" autoComplete="off" name="veh-search" spellCheck={false} className="text-xs border rounded px-2 py-1.5 w-64" />
+              <input value={searchVeh} onChange={e=>setSearchVeh(e.target.value)} placeholder="🔍 Immat, propriétaire, chauffeur…" autoComplete="off" name="veh-search" spellCheck={false} readOnly={searchVehRO} onFocus={()=>setSearchVehRO(false)} onBlur={()=>setSearchVehRO(true)} className="text-xs border rounded px-2 py-1.5 w-64" />
               <button onClick={()=>fetch("/api/admin/vehicules-inscrits").then(r=>r.json()).then(d=> setVehiculesInscrits(d.vehicules||[]))} className="text-xs bg-white border px-3 py-1.5 rounded hover:bg-emerald-50">🔄</button>
               <a href="/proprietaires-app/index.html" target="_blank" className="text-xs bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded flex items-center">📝 Espace propriétaires</a>
             </div>

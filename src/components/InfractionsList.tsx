@@ -63,11 +63,11 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
   const [loadedOnce, setLoadedOnce] = useState(false);
 
   const [filterInfraction, setFilterInfraction] = useState<string>("all");
-  const [filterConducteur, setFilterConducteur] = useState<string>("all");
   const [filterStatut, setFilterStatut] = useState<string>("all");
   const [filterPeriode, setFilterPeriode] = useState<string>("all"); // historique uniquement
   const [filterJour, setFilterJour] = useState<string>("");
   const [filterPlaque, setFilterPlaque] = useState<string>("");
+  const [plaqueRO, setPlaqueRO] = useState<boolean>(true); // anti-autofill : lecture seule jusqu'au focus
   const [filterTranche, setFilterTranche] = useState<string>("all"); // all|matin|aprem|soir|nuit|perso
   const [filterH1, setFilterH1] = useState<string>("");
   const [filterH2, setFilterH2] = useState<string>("");
@@ -135,7 +135,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
     return () => clearInterval(t);
   }, [load, autoOn]);
 
-  const conducteursSrc = useMemo(() => [...new Set(rows.map(i => i.conducteurNom))].sort(), [rows]);
+
   const typesSrc = useMemo(() => [...new Set(rows.map(i => i.infraction))].filter((t) => !notAnInfraction(t)).sort(), [rows]);
 
   const filteredSrc = useMemo(() => {
@@ -143,12 +143,11 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
     return rows.filter(i => {
       if (notAnInfraction(i.infraction)) return false;
       if (!dansTranche(i.recordedAt)) return false;
-      if (filterConducteur !== "all" && i.conducteurNom !== filterConducteur) return false;
       if (q && !matchNom(i, q)) return false;
       if (mode === "historique" && filterJour && (i.recordedAt || "").slice(0, 10) !== filterJour) return false;
       return true;
     });
-  }, [rows, filterConducteur, filterPlaque, filterJour, mode, filterTranche, filterH1, filterH2]);
+  }, [rows, filterPlaque, filterJour, mode, filterTranche, filterH1, filterH2]);
 
   // Remonte la liste affichée (session ou historique + filtres) pour la carte.
   useEffect(() => {
@@ -156,7 +155,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
   }, [filteredSrc]);
 
   const resetFilters = () => {
-    setFilterInfraction("all"); setFilterConducteur("all"); setFilterStatut("all");
+    setFilterInfraction("all"); setFilterStatut("all");
     setFilterPeriode("all"); setFilterJour(""); setFilterPlaque("");
     setFilterTranche("all"); setFilterH1(""); setFilterH2("");
   };
@@ -171,7 +170,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
     window.open(`/api/unites/infractions?${params.toString()}`, "_blank");
   };
 
-  const hasActiveFilter = filterInfraction !== "all" || filterConducteur !== "all" || filterStatut !== "all" ||
+  const hasActiveFilter = filterInfraction !== "all" || filterStatut !== "all" ||
     (mode === "historique" && (filterPeriode !== "all" || !!filterJour)) || !!filterPlaque || filterTranche !== "all";
 
   // Message du corps du tableau : jamais de changement de mise en page, seulement de contenu.
@@ -213,10 +212,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
             <option value="all">Toutes infractions</option>
             {typesSrc.map(t=> <option key={t} value={t}>{t}</option>)}
           </select>
-          <select value={filterConducteur} onChange={e=>setFilterConducteur(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white">
-            <option value="all">Tous conducteurs</option>
-            {conducteursSrc.map(c=> <option key={c} value={c}>{c}</option>)}
-          </select>
+
           <select value={filterStatut} onChange={e=>setFilterStatut(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white" title="Statut posé par les unités (app Android)">
             <option value="all">Tous statuts</option>
             <option value="nouveau">Nouveau</option>
@@ -231,7 +227,9 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
               <option value="30d">30 jours</option>
             </select>
           )}
-          <input value={filterPlaque} onChange={e=>setFilterPlaque(e.target.value)} placeholder="🔍 Matricule, véhicule, nom…" autoComplete="off" name="inf-search" spellCheck={false} className="text-xs border rounded px-2 py-1 bg-white w-40" />
+          <input value={filterPlaque} onChange={e=>setFilterPlaque(e.target.value)} placeholder="🔍 Matricule, véhicule, nom…" autoComplete="off" name="inf-search" spellCheck={false}
+            readOnly={plaqueRO} onFocus={()=>setPlaqueRO(false)} onBlur={()=>setPlaqueRO(true)}
+            className="text-xs border rounded px-2 py-1 bg-white w-40" />
           <select value={filterTranche} onChange={e=>setFilterTranche(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white" title="Filtre horaire (heure locale)">
             <option value="all">🕐 Toute heure</option>
             <option value="matin">🌅 Matin (6h-12h)</option>
