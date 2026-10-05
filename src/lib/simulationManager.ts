@@ -807,29 +807,10 @@ export function tickSimulation() {
           const osmMs = getOsmMaxSpeedForPosition(car.lat, car.lon, originWilaya);
           if (osmMs != null) effectiveLimit = osmMs;
         }
+        // Limite OSM inconnue : on ne crée PLUS d'infraction ("impossible de comparée"
+        // n'est pas une infraction, juste une absence d'info). Vitesse non évaluable.
         if (effectiveLimit == null) {
-          const lastAt2 = state.lastInfractionAt.get(car.voiture.carId) || 0;
-          const nowMs2 = now.getTime();
-          if (nowMs2 - lastAt2 > 15000) {
-            const inf2 = {
-              id: uuidv4(),
-              carId: car.voiture.carId,
-              immatriculation: car.voiture.immatriculation,
-              conducteurNom: `${car.conducteurActuel.prenom} ${car.conducteurActuel.nom}`,
-              roadName: car.currentRoadName || `${car.originCity} → ${car.destinationCity}`,
-              troncon: car.currentRoadName || `${car.originCity} → ${car.destinationCity}`,
-              infraction: "impossible de comparée" as const,
-              speed: Math.round(car.speed * 10) / 10,
-              speedLimit: 9999,
-              excess: 0,
-              lat: car.lat,
-              lon: car.lon,
-              recordedAt: now.toISOString(),
-              itineraireId: car.itineraireActuel.id,
-            } as SpeedInfraction;
-            state.infractions.push(inf2);
-            state.lastInfractionAt.set(car.voiture.carId, nowMs2);
-          }
+          // rien à signaler
         } else {
           const limitKmh = effectiveLimit as number;
           if (car.speed > limitKmh + 5) {

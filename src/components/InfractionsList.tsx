@@ -1,5 +1,10 @@
 "use client";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import InfractionsMiniMap from "./InfractionsMiniMap";
+
+// "Impossible de comparée" n'est plus une infraction (limite OSM inconnue) :
+// ni créée (simulationManager), ni persistée (dispatch), ni affichée ici.
+const notAnInfraction = (t: string) => t === "impossible de comparée";
 
 interface Infraction {
   id: string; carId: string; immatriculation: string; conducteurNom: string;
@@ -100,11 +105,12 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
   }, [load]);
 
   const conducteursSrc = useMemo(() => [...new Set(rows.map(i => i.conducteurNom))].sort(), [rows]);
-  const typesSrc = useMemo(() => [...new Set(rows.map(i => i.infraction))].sort(), [rows]);
+  const typesSrc = useMemo(() => [...new Set(rows.map(i => i.infraction))].filter((t) => !notAnInfraction(t)).sort(), [rows]);
 
   const filteredSrc = useMemo(() => {
     const q = filterPlaque.trim().toLowerCase();
     return rows.filter(i => {
+      if (notAnInfraction(i.infraction)) return false;
       if (filterConducteur !== "all" && i.conducteurNom !== filterConducteur) return false;
       if (q && !matchNom(i, q)) return false;
       if (mode === "historique" && filterJour && (i.recordedAt || "").slice(0, 10) !== filterJour) return false;
@@ -143,12 +149,24 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
 
   return (
     <div className="bg-white rounded-xl shadow border overflow-hidden flex flex-col h-full">
+      <div className="px-4 pt-2 flex-shrink-0">
+        <InfractionsMiniMap points={filteredSrc} />
+      </div>
       <div className="flex flex-col gap-2 px-4 py-2 bg-red-50 border-b flex-shrink-0">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-sm text-red-800">🚨 Infractions — {filteredSrc.length}/{rows.length}</h3>
           <div className="flex gap-2 items-center">
             <ModeToggle mode={mode} setMode={setMode} loading={loading} onRefresh={load} />
             <button onClick={handleExport} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded">⬇️ GeoJSON</button>
+            {mode === "historique" && (
+              <button onClick={async () => {
+                if (!window.confirm(`Supprimer DÉFINITIVEMENT les ${total} infractions de la base ?`)) return;
+                const r = await fetch("/api/unites/infractions", { method: "DELETE" });
+                const d = await r.json().catch(() => ({}));
+                if (d.ok) load();
+              }} title="Supprime toutes les infractions persistées en base (irréversible)"
+                className="text-xs bg-red-700 hover:bg-red-800 text-white px-2 py-1 rounded">🗑️ Tout supprimer</button>
+            )}
             <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full animate-pulse">{total} {mode === "session" ? "aujourd'hui" : "au total (filtré)"}</span>
           </div>
         </div>

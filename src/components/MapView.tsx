@@ -61,7 +61,7 @@ interface Props {
   showTrails?: boolean;
 }
 
-function infractionColor(infraction: string): string {
+export function infractionColor(infraction: string): string {
   switch (infraction) {
     case "exces de vitesse": return "#dc2626";
     case "zone interdite": return "#d97706";
@@ -74,7 +74,7 @@ function infractionColor(infraction: string): string {
 }
 
 // Symbologie par type d'infraction (formes distinctes + légende)
-function infractionSymbol(infraction: string): { glyph: string; color: string; label: string } {
+export function infractionSymbol(infraction: string): { glyph: string; color: string; label: string } {
   const color = infractionColor(infraction);
   switch (infraction) {
     case "exces de vitesse": return { glyph: "●", color, label: "Excès de vitesse" };
@@ -487,20 +487,32 @@ export default function MapView({ geojson, selectedCar, onSelectCar, trails, car
     map.panTo([lat, lon] as L.LatLngExpression, { animate: true, duration: 0.5 });
   }, [selectedCar, geojson]);
 
-  // Infractions sur la carte (affichable/masquable, max 1000 points) + légende par type
+  // Infractions sur la carte (affichable/masquable, max 300 points) + légende par type.
+  // Garde-fou : ne redessine que si les données changent (des milliers de marqueurs
+  // recréés à chaque tick figeaient la carte et semblaient invisibles).
+  const infSigRef = useRef<string>("");
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (!infractionsLayerRef.current) {
       infractionsLayerRef.current = L.layerGroup().addTo(map);
     }
-    const layer = infractionsLayerRef.current;
-    layer.clearLayers();
+    const sig = showInfractions ? (infractions || []).slice(0, 300).map((i) => `${i.id}:${i.statut || ""}`).join("|") : "off";
+    if (sig === infSigRef.current) return;
+    infSigRef.current = sig;
+    // Recrée le calque sur la carte live (un layerGroup mis en cache peut
+    // appartenir à une instance de carte démontée → marqueurs invisibles).
+    if (infractionsLayerRef.current) {
+      infractionsLayerRef.current.remove();
+      infractionsLayerRef.current = null;
+    }
+    const layer = L.layerGroup().addTo(map);
+    infractionsLayerRef.current = layer;
     // Retire l'ancienne légende
     document.querySelectorAll(".inf-legend").forEach((el) => el.remove());
     if (!showInfractions || !infractions?.length) return;
     const counts = new Map<string, number>();
-    for (const inf of infractions.slice(0, 1000)) {
+    for (const inf of infractions.slice(0, 300)) {
       if (!Number.isFinite(inf.lat) || !Number.isFinite(inf.lon)) continue;
       const st = inf.statut || "nouveau";
       counts.set(inf.infraction, (counts.get(inf.infraction) || 0) + 1);

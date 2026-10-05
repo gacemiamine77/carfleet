@@ -98,6 +98,8 @@ export async function dispatchInfractions(infractions: (SpeedInfraction & { cate
   let errors = 0;
   let firstError: string | null = null;
   for (const inf of fresh) {
+    // "Impossible de comparée" n'est pas une infraction : jamais persistée
+    if ((inf as any).infraction === "impossible de comparée") { dispatchedIds.add(inf.id); continue; }
     try {
       const already = await db.select({ id: infractionsConstatees.id }).from(infractionsConstatees).where(eq(infractionsConstatees.externalId, inf.id)).limit(1);
       dispatchedIds.add(inf.id);

@@ -97,6 +97,7 @@ export default function Home() {
   const [showInfractions, setShowInfractions] = useState(true);
   const [showTrails, setShowTrails] = useState(true);
   const [mapInfractions, setMapInfractions] = useState<any[]>([]);
+  const [simInfractions, setSimInfractions] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<"carte" | "infractions" | "panneaux" | "unites" | "vehicules">("carte");
   const [customRoads, setCustomRoads] = useState<any>(null);
   const [selectingItineraryFor, setSelectingItineraryFor] = useState<string | null>(null);
@@ -208,6 +209,7 @@ export default function Home() {
     setSessionId(data.sessionId);
     setGeojson(data.carsGeoJSON);
     setCars(data.carsList ?? []);
+    setSimInfractions([]);
     setCarRoutes(data.carRoutes ?? {});
     setTrails(new Map());
     setPrepared(true);
@@ -254,6 +256,7 @@ export default function Home() {
             tickData.bufferStats ?? { totalRecords: 0, sizeKb: 0, elapsedMinutes: 0 }
           );
           setTotalInDb(tickData.totalRecordsSentToDb ?? 0);
+          if (Array.isArray(tickData.infractions)) setSimInfractions(tickData.infractions);
           if (tickData.customRoads) setCustomRoads(tickData.customRoads);
           if (tickData.carRoutes) {
             setCarRoutes(tickData.carRoutes);
@@ -323,6 +326,7 @@ export default function Home() {
     setRunning(false);
     setPaused(false);
     setPrepared(false);
+    setSimInfractions([]);
     if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
     if (autoFlushRef.current) clearInterval(autoFlushRef.current);
     await fetch("/api/simulation", {
@@ -432,9 +436,9 @@ export default function Home() {
         {/* Map */}
         <main className="flex-1 relative">
           <div className="absolute top-2 right-2 z-[1000] bg-white/95 border shadow rounded-lg px-2.5 py-1.5 text-xs font-medium flex items-center gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer">
+            <label className="flex items-center gap-1.5 cursor-pointer" title="Uniquement la simulation en cours (l'Historique reste dans l'onglet)">
               <input type="checkbox" checked={showInfractions} onChange={e=>setShowInfractions(e.target.checked)} />
-              🚨 Infractions ({mapInfractions.length})
+              🚨 Infractions simu ({simInfractions.length})
             </label>
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input type="checkbox" checked={showTrails} onChange={e=>setShowTrails(e.target.checked)} />
@@ -456,7 +460,7 @@ export default function Home() {
             carSpeeds={carSpeeds}
             customRoads={null}
             onMapClick={handleMapClick}
-            infractions={mapInfractions}
+            infractions={simInfractions}
             showInfractions={showInfractions}
             showTrails={showTrails}
           />

@@ -43,8 +43,10 @@ export async function GET(req: NextRequest) {
   const statutF = searchParams.get("statut") || "all";
   const periodeF = searchParams.get("periode") || "all"; // today | 7d | 30d | all
   const qF = (searchParams.get("q") || "").trim().toLowerCase();
-  const latF = Number(searchParams.get("lat"));
-  const lonF = Number(searchParams.get("lon"));
+  // Attention : Number(null) === 0 — un paramètre absent donnerait (0,0) au large du Ghana !
+  const latParam = searchParams.get("lat"), lonParam = searchParams.get("lon");
+  const latF = latParam == null || latParam === "" ? NaN : Number(latParam);
+  const lonF = lonParam == null || lonParam === "" ? NaN : Number(lonParam);
   const rayonF = Math.min(100000, Math.max(100, Number(searchParams.get("rayon") || 10000)));
   const triF = searchParams.get("tri") || "recent"; // recent | gravite | distance
   const hasPos = Number.isFinite(latF) && Number.isFinite(lonF);
@@ -147,5 +149,19 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,PATCH,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" } });
+  return new NextResponse(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" } });
+}
+
+// DELETE /api/unites/infractions — supprime TOUTES les infractions persistées (action irréversible)
+export async function DELETE() {
+  try {
+    const { db } = await import("@/db");
+    const { infractionsConstatees } = await import("@/db/schema");
+    await db.delete(infractionsConstatees);
+    const res = NextResponse.json({ ok: true, cleared: true });
+    res.headers.set("Access-Control-Allow-Origin", "*");
+    return res;
+  } catch (e: any) {
+    return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
+  }
 }
