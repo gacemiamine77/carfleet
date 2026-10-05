@@ -40,6 +40,8 @@ function matchNom(i: { immatriculation?: string; carId?: string; conducteurNom?:
 // Toute infraction constatée vit en base (table infractions_constatees) ; ce composant ne
 // garde plus aucune copie "mémoire" comme source d'affichage — il relit la base à chaque
 // changement de filtre et périodiquement (AUTO_REFRESH_MS), que la simulation tourne ou non.
+// Important : l'en-tête + les filtres restent TOUJOURS montés (même si 0 ligne), pour éviter
+// tout flash/disparition pendant un chargement ou quand un filtre ne retourne rien.
 export default function InfractionsList({ onSelectCar, onDisplayChange }: Props) {
   const displayCb = useRef(onDisplayChange);
   displayCb.current = onDisplayChange;
@@ -48,6 +50,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
   const [rows, setRows] = useState<Infraction[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
 
   const [filterInfraction, setFilterInfraction] = useState<string>("all");
   const [filterConducteur, setFilterConducteur] = useState<string>("all");
@@ -83,6 +86,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
       setTotal(d.total ?? mapped.length);
     } catch { setRows([]); setTotal(0); }
     setLoading(false);
+    setLoadedOnce(true);
   }, [mode, filterInfraction, filterStatut, filterPeriode, filterJour, filterPlaque]);
 
   // Rechargement à chaque changement de filtre/mode
@@ -131,20 +135,11 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
   const hasActiveFilter = filterInfraction !== "all" || filterConducteur !== "all" || filterStatut !== "all" ||
     (mode === "historique" && (filterPeriode !== "all" || !!filterJour)) || !!filterPlaque;
 
-  if (!loading && rows.length === 0) {
-    return (
-      <div className="bg-white rounded-xl shadow p-4 border">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="font-bold text-sm">🚨 Infractions</h3>
-          <div className="flex gap-2">
-            <ModeToggle mode={mode} setMode={setMode} loading={loading} onRefresh={load} />
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">0 infraction</span>
-          </div>
-        </div>
-        <p className="text-xs text-gray-400">{mode === "session" ? "Aucune infraction aujourd'hui." : "Aucune infraction en base pour ce filtre."}</p>
-      </div>
-    );
-  }
+  // Message du corps du tableau : jamais de changement de mise en page, seulement de contenu.
+  let bodyMessage: string | null = null;
+  if (!loadedOnce && loading) bodyMessage = "⏳ Chargement…";
+  else if (rows.length === 0) bodyMessage = mode === "session" ? "Aucune infraction aujourd'hui." : "Aucune infraction en base pour ce filtre.";
+  else if (filteredSrc.length === 0) bodyMessage = "Aucune infraction pour ce filtre (conducteur/jour).";
 
   return (
     <div className="bg-white rounded-xl shadow border overflow-hidden flex flex-col h-full">
@@ -157,7 +152,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
             <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full animate-pulse">{total} {mode === "session" ? "aujourd'hui" : "au total (filtré)"}</span>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <select value={filterInfraction} onChange={e=>setFilterInfraction(e.target.value)} className="text-xs border rounded px-2 py-1 bg-white">
             <option value="all">Toutes infractions</option>
             {typesSrc.map(t=> <option key={t} value={t}>{t}</option>)}
@@ -192,47 +187,49 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
         )}
       </div>
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-xs">
-          <thead className="bg-gray-50 sticky top-0">
-            <tr className="text-left text-gray-500">
-              <th className="px-3 py-1.5">Heure</th>
-              <th className="px-3 py-1.5">Date</th>
-              <th className="px-3 py-1.5">Infraction</th>
-              <th className="px-3 py-1.5">Véhicule</th>
-              <th className="px-3 py-1.5">Conducteur</th>
-              <th className="px-3 py-1.5">Tronçon</th>
-              <th className="px-3 py-1.5">Vitesse</th>
-              <th className="px-3 py-1.5">Limite</th>
-              <th className="px-3 py-1.5">Excès</th>
-              <th className="px-3 py-1.5">Statut unité</th>
-              <th className="px-3 py-1.5">Position</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredSrc.length===0 ? (
-              <tr><td colSpan={11} className="text-center py-8 text-gray-400">Aucune infraction pour ce filtre</td></tr>
-            ) : filteredSrc.map((inf) => {
-              const d = new Date(inf.recordedAt);
-              const heure = d.toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-              const date = d.toLocaleDateString("fr-DZ");
-              return (
-                <tr key={inf.id} className="border-t hover:bg-red-50 cursor-pointer" onClick={() => onSelectCar?.(inf.carId)} title="Centrer sur le véhicule">
-                  <td className="px-3 py-1 font-mono">{heure}</td>
-                  <td className="px-3 py-1">{date}</td>
-                  <td className="px-3 py-1"><span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${inf.infraction==='zone interdite' ? 'bg-amber-100 text-amber-800' : inf.infraction==='circulation à contresens' ? 'bg-purple-100 text-purple-700' : inf.infraction==='conduite longue sans arrêt' ? 'bg-orange-100 text-orange-800' : inf.infraction==='arrêt interdit' ? 'bg-red-200 text-red-800' : inf.infraction==='stationnement interdit' ? 'bg-yellow-100 text-yellow-800' : inf.infraction==='impossible de comparée' ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700'}`}>{inf.infraction}</span></td>
-                  <td className="px-3 py-1 font-mono">{inf.immatriculation} <span className="text-gray-400">({inf.carId})</span></td>
-                  <td className="px-3 py-1">{inf.conducteurNom}</td>
-                  <td className="px-3 py-1 max-w-[180px] truncate" title={inf.troncon + (inf.restriction ? ' — '+inf.restriction : '')}>{inf.roadName}{inf.restriction && <span className="text-amber-600"> ⚠️ {inf.restriction}</span>}</td>
-                  <td className="px-3 py-1 font-bold text-red-600">{inf.speed.toFixed(0)} km/h</td>
-                  <td className="px-3 py-1">{inf.speedLimit===9999 ? '—' : inf.speedLimit+' km/h'}</td>
-                  <td className="px-3 py-1 font-bold text-red-700">{inf.infraction==='exces de vitesse' ? `+${inf.excess.toFixed(0)}` : '—'}</td>
-                  <td className="px-3 py-1"><span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${(inf.statut||'nouveau')==='traite' ? 'bg-green-100 text-green-800' : (inf.statut||'nouveau')==='notifie' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`} title={inf.wilaya ? `Unité ${inf.codeWilaya} - ${inf.wilaya}` : 'Pas encore pris en charge'}>{(inf.statut||'nouveau')==='traite' ? '✅ Traité' : (inf.statut||'nouveau')==='notifie' ? 'Notifié' : 'Nouveau'}</span></td>
-                  <td className="px-3 py-1 font-mono text-[11px]">{inf.lat.toFixed(4)}, {inf.lon.toFixed(4)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        {bodyMessage ? (
+          <p className="text-xs text-gray-400 text-center py-8">{bodyMessage}</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr className="text-left text-gray-500">
+                <th className="px-3 py-1.5">Heure</th>
+                <th className="px-3 py-1.5">Date</th>
+                <th className="px-3 py-1.5">Infraction</th>
+                <th className="px-3 py-1.5">Véhicule</th>
+                <th className="px-3 py-1.5">Conducteur</th>
+                <th className="px-3 py-1.5">Tronçon</th>
+                <th className="px-3 py-1.5">Vitesse</th>
+                <th className="px-3 py-1.5">Limite</th>
+                <th className="px-3 py-1.5">Excès</th>
+                <th className="px-3 py-1.5">Statut unité</th>
+                <th className="px-3 py-1.5">Position</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSrc.map((inf) => {
+                const d = new Date(inf.recordedAt);
+                const heure = d.toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+                const date = d.toLocaleDateString("fr-DZ");
+                return (
+                  <tr key={inf.id} className="border-t hover:bg-red-50 cursor-pointer" onClick={() => onSelectCar?.(inf.carId)} title="Centrer sur le véhicule">
+                    <td className="px-3 py-1 font-mono">{heure}</td>
+                    <td className="px-3 py-1">{date}</td>
+                    <td className="px-3 py-1"><span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${inf.infraction==='zone interdite' ? 'bg-amber-100 text-amber-800' : inf.infraction==='circulation à contresens' ? 'bg-purple-100 text-purple-700' : inf.infraction==='conduite longue sans arrêt' ? 'bg-orange-100 text-orange-800' : inf.infraction==='arrêt interdit' ? 'bg-red-200 text-red-800' : inf.infraction==='stationnement interdit' ? 'bg-yellow-100 text-yellow-800' : inf.infraction==='impossible de comparée' ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700'}`}>{inf.infraction}</span></td>
+                    <td className="px-3 py-1 font-mono">{inf.immatriculation} <span className="text-gray-400">({inf.carId})</span></td>
+                    <td className="px-3 py-1">{inf.conducteurNom}</td>
+                    <td className="px-3 py-1 max-w-[180px] truncate" title={inf.troncon + (inf.restriction ? ' — '+inf.restriction : '')}>{inf.roadName}{inf.restriction && <span className="text-amber-600"> ⚠️ {inf.restriction}</span>}</td>
+                    <td className="px-3 py-1 font-bold text-red-600">{inf.speed.toFixed(0)} km/h</td>
+                    <td className="px-3 py-1">{inf.speedLimit===9999 ? '—' : inf.speedLimit+' km/h'}</td>
+                    <td className="px-3 py-1 font-bold text-red-700">{inf.infraction==='exces de vitesse' ? `+${inf.excess.toFixed(0)}` : '—'}</td>
+                    <td className="px-3 py-1"><span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${(inf.statut||'nouveau')==='traite' ? 'bg-green-100 text-green-800' : (inf.statut||'nouveau')==='notifie' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`} title={inf.wilaya ? `Unité ${inf.codeWilaya} - ${inf.wilaya}` : 'Pas encore pris en charge'}>{(inf.statut||'nouveau')==='traite' ? '✅ Traité' : (inf.statut||'nouveau')==='notifie' ? 'Notifié' : 'Nouveau'}</span></td>
+                    <td className="px-3 py-1 font-mono text-[11px]">{inf.lat.toFixed(4)}, {inf.lon.toFixed(4)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
