@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 App externe - simule 5 voitures avec positions aléatoires en Algérie et envoie vers la plateforme.
-Usage: python simulate.py --url http://192.168.0.2:3000 --interval 2
+Usage: python simulate.py --url https://carfleet-75dh.onrender.com --interval 2
 """
 import argparse, time, random, requests, sys
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--url", default="http://192.168.0.2:3000", help="URL de la plateforme, ex: http://192.168.0.2:3000")
+parser.add_argument("--url", default="https://carfleet-75dh.onrender.com", help="URL de la plateforme, ex: https://carfleet-75dh.onrender.com")
 parser.add_argument("--interval", type=float, default=2.0, help="secondes entre envois")
 parser.add_argument("--session", default=None, help="sessionId optionnel")
 args = parser.parse_args()

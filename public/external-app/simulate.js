@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // App externe Node - 5 voitures aléatoires
-// Usage: node simulate.js --url http://192.168.0.2:3000 --interval 2
+// Usage: node simulate.js --url https://carfleet-75dh.onrender.com --interval 2
 const args = process.argv.slice(2);
 const getArg = (k, d) => { const i=args.indexOf(`--${k}`); return i!==-1 ? args[i+1] : d; };
 const base = (getArg("url","http://127.0.0.1:3000")).replace(/\/$/,"");

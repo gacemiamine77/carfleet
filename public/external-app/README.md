@@ -10,7 +10,7 @@ Dans `car-tracking` lancez :
 npm run dev
 ```
 
-Notez l'IP affichée : `http://192.168.0.2:3000` (exemple). Testez `http://VOTRE_IP:3000/api/external/track` doit répondre `{"ok":true}`.
+Par défaut : `https://carfleet-75dh.onrender.com` (ou en local `http://VOTRE_IP:3000` — testez `http://VOTRE_IP:3000/api/external/track` doit répondre `{"ok":true}`).
 
 Ouvrez le pare-feu Windows : `Pare-feu > Autoriser une application > Node.js`.
 
@@ -20,19 +20,19 @@ Ouvrez le pare-feu Windows : `Pare-feu > Autoriser une application > Node.js`.
 
 ```bash
 pip install requests
-python simulate.py --url http://192.168.0.2:3000 --interval 2
+python simulate.py --url https://carfleet-75dh.onrender.com --interval 2
 ```
 
 ### Option B — Node
 
 ```bash
 npm install node-fetch@2
-node simulate.js --url http://192.168.0.2:3000 --interval 2
+node simulate.js --url https://carfleet-75dh.onrender.com --interval 2
 ```
 
 ### Option C — Navigateur (sans installation)
 
-Ouvrez `index.html` dans Chrome (double-clic), renseignez `http://192.168.0.2:3000` et cliquez `Start`.
+Ouvrez la page hébergée (ou `index.html`), renseignez `https://carfleet-75dh.onrender.com` et cliquez `Start`.
 
 ## 3. Vérifier
 
