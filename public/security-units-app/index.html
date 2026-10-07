@@ -4,170 +4,346 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="theme-color" content="#1e3a8a">
-<title>Unités Sécurité Routière — DZ</title>
+<title>Unités SR — DZ</title>
 <link rel="manifest" href="./manifest.json">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-*{box-sizing:border-box}body{font-family:system-ui;margin:0;background:#f1f5f9;color:#0f172a}
-header{background:#1e3a8a;color:#fff;padding:10px 14px;display:flex;gap:10px;align-items:center;position:sticky;top:0;z-index:10}
-header h1{font-size:16px;margin:0}.badge{background:#ef4444;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700}
-main{padding:10px;max-width:1100px;margin:auto;display:flex;flex-direction:column;gap:10px}
-.filters{background:#fff;border-radius:10px;padding:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;box-shadow:0 1px 3px #0002}
-.filters label{font-size:12px;display:flex;flex-direction:column;gap:4px}
-select,input,button{padding:8px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px}
-button{background:#1e3a8a;color:#fff;border:0;font-weight:700;cursor:pointer}
-button.ghost{background:#fff;color:#1e3a8a;border:1px solid #1e3a8a}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
-.card{background:#fff;border-radius:10px;padding:10px;box-shadow:0 1px 3px #0002}
-.card b{font-size:20px;display:block}.card span{font-size:12px;color:#64748b}
-#map{height:420px;border-radius:10px;box-shadow:0 1px 3px #0002;z-index:0}
-table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:10px;overflow:hidden}
-th,td{padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:left}
+:root{--blue:#1e3a8a;--bg:#eef2f7;--card:#fff;--txt:#0f172a;--mut:#64748b;--red:#dc2626;--green:#16a34a;--amber:#d97706;--r:14px}
+*{box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:var(--bg);color:var(--txt)}
+header{background:linear-gradient(135deg,#1e3a8a,#3b82f6);color:#fff;padding:12px 14px;position:sticky;top:0;z-index:20;box-shadow:0 2px 8px #0003}
+header h1{font-size:17px;margin:0}header small{color:#bfdbfe;font-size:12px}
+.unit-chip{display:inline-block;background:#ffffff2e;border-radius:999px;padding:3px 10px;font-size:12px;margin-top:4px}
+main{padding:10px 10px 90px;max-width:1100px;margin:auto}
+.card{background:var(--card);border-radius:var(--r);padding:12px;box-shadow:0 1px 4px #0001;margin-bottom:10px}
+.card h3{margin:0 0 8px;font-size:15px}
+label{font-size:12px;color:var(--mut);display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+input,select{padding:10px;border-radius:10px;border:1px solid #cbd5e1;font-size:15px;width:100%;background:#fff}
+button{padding:10px 14px;border-radius:10px;border:0;font-size:15px;font-weight:700;cursor:pointer;background:var(--blue);color:#fff}
+button.ghost{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}
+button.warn{background:var(--red)}
+button:disabled{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}
+#map{height:60vh;min-height:340px;border-radius:var(--r);z-index:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.stat{background:#f8fafc;border-radius:10px;padding:10px;text-align:center}
+.stat b{font-size:20px;display:block}.stat span{font-size:11px;color:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left}
 th{background:#f8fafc;position:sticky;top:0}
-.tbl{max-height:320px;overflow:auto;border-radius:10px;box-shadow:0 1px 3px #0002}
+.tbl{max-height:46vh;overflow:auto;border-radius:10px;border:1px solid #e2e8f0}
+tr.infrow{cursor:pointer}tr.infrow.sel{background:#dbeafe}
 .pill{padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;display:inline-block}
 .p-nouveau{background:#fee2e2;color:#991b1b}.p-notifie{background:#fef3c7;color:#92400e}.p-traite{background:#dcfce7;color:#166534}
-#log{background:#0f172a;color:#e2e8f0;font-family:monospace;font-size:11px;border-radius:10px;padding:8px;height:110px;overflow:auto}
-@media(max-width:600px){#map{height:320px}header h1{font-size:14px}}
+nav.tabs{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;display:flex;z-index:20;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+nav.tabs button{flex:1;background:none;color:var(--mut);font-size:12px;padding:8px 0}
+nav.tabs button.on{color:var(--blue)}
+nav.tabs button span{font-size:20px;display:block}
+#log{background:#0f172a;color:#e2e8f0;font-family:monospace;font-size:11px;border-radius:10px;padding:8px;height:90px;overflow:auto}
+.hidden{display:none!important}
+.login-wrap{max-width:420px;margin:6vh auto}
+.posbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.posbar>*{flex:1;min-width:120px}
+#meDot{font-size:12px;color:var(--mut)}
+@media(max-width:600px){#map{height:52vh}}
 </style>
 </head>
 <body>
 <header>
-<span style="font-size:22px">🚓</span>
-<h1>Unités Sécurité Routière — Algérie</h1>
-<span class="badge" id="count">0</span>
-<span style="margin-left:auto;font-size:12px" id="conn">…</span>
+<h1>🚓 Unités Sécurité Routière</h1>
+<small id="sub">Connexion requise</small>
+<div id="uchip"></div>
 </header>
 <main>
-<div class="filters">
-<label>URL plateforme<input id="url" value="http://192.168.0.2:3000"></label>
-<label>Wilaya (territoire)<select id="wilaya"><option value="all">Toutes (58)</option></select></label>
-<label>Unité<select id="type"><option value="all">Police + Gendarmerie</option><option value="police">Police</option><option value="gendarmerie">Gendarmerie</option></select></label>
-<label>Type infraction<select id="infraction"><option value="all">Toutes</option><option>exces de vitesse</option><option>zone interdite</option><option>circulation à contresens</option><option>conduite longue sans arrêt</option><option>arrêt interdit</option><option>stationnement interdit</option><option>impossible de comparée</option></select></label>
-<label>Type véhicule<select id="cat"><option value="all">Tous</option><option value="leger">Léger</option><option value="lourd">Lourd</option><option value="transport">Transport</option><option value="transport_dangereux">Dangereux</option><option value="convoi_exceptionnel">Convoi exceptionnel</option></select></label>
-<label>Statut<select id="statut"><option value="all">Tous</option><option value="nouveau">Nouveau</option><option value="notifie">Notifié</option><option value="traite">Traité</option></select></label>
-<label>Dispositif unité<select id="moyen"><option value="all">Tous dispositifs</option><option value="barrage_fixe">🚧 Barrage fixe</option><option value="barrage_mobile">🚔 Barrage mobile</option><option value="motards">🏍️ Motards</option><option value="vehicule_mobile">🚙 Véhicule mobile</option><option value="poste_fixe">🏢 Poste fixe</option></select></label>
-<label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="showU" checked style="width:auto"> 🚓 Unités sur carte</label>
-<label>&nbsp;<button id="go">🔄 Actualiser</button></label>
-<label>&nbsp;<button id="auto" class="ghost">⏱️ Auto: OFF</button></label>
+<!-- LOGIN -->
+<div class="card login-wrap" id="loginCard">
+<h3>🔐 Connexion unité</h3>
+<p style="font-size:12px;color:var(--mut)">Utilise le compte créé dans la plateforme (onglet Unités → Comptes).</p>
+<label>URL plateforme<input id="url" value="http://192.168.0.2:3000" autocomplete="off"></label>
+<label>Nom d'utilisateur<input id="user" autocomplete="username"></label>
+<label>Mot de passe<input id="pass" type="password" autocomplete="current-password"></label>
+<button id="btnLogin" style="width:100%">Se connecter</button>
+<p id="loginErr" style="color:var(--red);font-size:13px"></p>
 </div>
-<div class="stats" id="stats"></div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+<div class="card">
+<div class="row">
+<label>Type infraction<select id="fInf"><option value="all">Toutes</option><option>exces de vitesse</option><option>zone interdite</option><option>circulation à contresens</option><option>conduite longue sans arrêt</option><option>arrêt interdit</option><option>stationnement interdit</option></select></label>
+<label>Type véhicule<select id="fCat"><option value="all">Tous</option><option value="leger">Léger</option><option value="lourd">Lourd</option><option value="transport">Transport</option><option value="transport_dangereux">Dangereux</option></select></label>
+<label>Statut<select id="fStat"><option value="all">Tous</option><option value="nouveau">Nouveau</option><option value="notifie">Notifié</option><option value="traite">Traité</option></select></label>
+<label>Vitesse ≥ (km/h)<input id="fVit" type="number" min="0" placeholder="ex. 100"></label>
+<label>Excès ≥ (km/h)<input id="fExc" type="number" min="0" placeholder="ex. 20"></label>
+</div>
+<div class="posbar">
+<label style="flex:2">📍 Position<input id="posLabel" readonly value="Non définie" style="background:#f8fafc"></label>
+<label>Rayon<select id="rayon"><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="20000">20 km</option></select></label>
+</div>
+<div class="row" style="margin-top:8px">
+<button id="btnGps" class="ghost">🛰️ GPS tablette</button>
+<button id="btnClick" class="ghost">👆 Cliquer carte</button>
+<button id="btnClearPos" class="ghost">✕ Effacer</button>
+<button id="btnGo">🔄 Actualiser</button>
+</div>
+<div id="meDot"></div>
+</div>
+
+<section id="tab-map">
 <div id="map"></div>
-<div class="tbl"><table><thead><tr><th>Heure</th><th>Wilaya</th><th>Infraction</th><th>Véhicule</th><th>Cat.</th><th>Vitesse</th><th>Position</th><th>Statut</th><th>Action</th></tr></thead><tbody id="rows"></tbody></table></div>
-<div id="log"></div>
+</section>
+
+<section id="tab-alerts" class="hidden">
+<div class="card"><h3>🚨 Alertes — <span id="count">0</span></h3>
+<label>🔍 Matricule, véhicule, nom…<input id="search" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" placeholder="ex. 1542, EXT-, Benali"></label>
+<div class="tbl"><table><thead><tr><th>Heure</th><th>Infraction</th><th>Véhicule</th><th>Conducteur</th><th>Vitesse</th><th>Statut</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+</div>
+</section>
+
+<section id="tab-chasse" class="hidden">
+<div class="card" id="chasseVide"><h3>🚔 Interception</h3><p style="font-size:13px;color:var(--mut)">Choisis une infraction grave dans Alertes → <b>🚔</b> pour préparer l’interception.</p></div>
+<div class="card hidden" id="chasseCard">
+<h3>🚔 Interception — <span id="chImmat"></span></h3>
+<div id="chInfo" style="font-size:13px"></div>
+<div class="row" style="margin:8px 0">
+<button id="btnSuivre">▶️ Suivre en direct</button>
+<button id="btnNav" class="ghost">🧭 Naviguer (point prédit)</button>
+<button id="btnStopCh" class="ghost">⏹️ Arrêter</button>
+</div>
+<h3 style="margin-top:6px">Unités mobiles proches (ETA)</h3>
+<div id="chUnits"></div>
+</div>
+</section>
+<section id="tab-stats" class="hidden">
+<div class="card"><h3>📊 Statistiques territoire</h3><div class="stats" id="stats"></div></div>
+<div class="card"><h3>🧭 Journal</h3><div id="log"></div></div>
+<div class="card"><button id="btnLogout" class="warn" style="width:100%">Déconnexion</button></div>
+</section>
+</div>
 </main>
+<nav class="tabs hidden" id="tabs">
+<button data-t="tab-map" class="on"><span>🗺️</span>Carte</button>
+<button data-t="tab-alerts"><span>🚨</span>Alertes</button>
+<button data-t="tab-chasse"><span>🚔</span>Chasse</button>
+<button data-t="tab-stats"><span>📊</span>Stats</button>
+</nav>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-let map,layer,unitsLayer,autoT=null,infMarkers=[],keepView=false;
-function log(m){const b=document.getElementById('log');const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+m;b.prepend(d);}
-async function loadWilayas(){
-  const base=document.getElementById('url').value.replace(/\/$/,'');
-  try{
-    const r=await fetch(base+'/api/unites');const j=await r.json();
-    const seen=new Map();
-    (j.unites||[]).forEach(u=>{if(!seen.has(u.codeWilaya))seen.set(u.codeWilaya,u.wilaya);});
-    const sel=document.getElementById('wilaya');const cur=sel.value;
-    sel.innerHTML='<option value="all">Toutes (58)</option>'+[...seen.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([c,n])=>'<option value="'+c+'">'+c+' - '+n+'</option>').join('');
-    if(cur)sel.value=cur;
-  }catch(e){log('wilayas fail '+e.message);}
+let BASE='',TOKEN='',UNITE=null,map,layer,unitsLayer,meMarker=null,infMarkers=[];
+let myPos=null,clickArm=false,autoT=null,unitsCentered=false,lastList=[];
+const $=id=>document.getElementById(id);
+function log(m){const b=$('log');if(!b)return;const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+m;b.prepend(d);}
+function auth(){return TOKEN?{'Authorization':'Bearer '+TOKEN}:{};}
+async function api(path,opts={}){
+  const r=await fetch(BASE+path,{...opts,headers:{'Content-Type':'application/json',...auth(),...(opts.headers||{})}});
+  if(r.status===401)throw new Error('SESSION');
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||r.status);
+  return j;
 }
-async function refresh(){
-  const base=document.getElementById('url').value.replace(/\/$/,'');
-  const w=document.getElementById('wilaya').value, inf=document.getElementById('infraction').value,
-        cat=document.getElementById('cat').value, st=document.getElementById('statut').value;
-  const q=new URLSearchParams({limit:'1000'});
-  if(w!=='all')q.set('codeWilaya',w); if(inf!=='all')q.set('infraction',inf);
-  if(cat!=='all')q.set('categorieVehicule',cat); if(st!=='all')q.set('statut',st);
-  document.getElementById('conn').textContent='⏳ '+base;
+// --- login ---
+$('btnLogin').onclick=async()=>{
+  BASE=$('url').value.replace(/\/$/,'');$('loginErr').textContent='';
   try{
-    const r=await fetch(base+'/api/unites/infractions?'+q.toString());
+    const r=await fetch(BASE+'/api/unites/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('user').value.trim(),password:$('pass').value})});
     const j=await r.json();
-    if(j.error){log('ERR '+j.error);return;}
+    if(!j.ok)throw new Error(j.error||'Échec');
+    TOKEN=j.token;UNITE=j.unite;
+    localStorage.setItem('sr_base',BASE);localStorage.setItem('sr_token',TOKEN);localStorage.setItem('sr_unite',JSON.stringify(UNITE));
+    enter();
+  }catch(e){$('loginErr').textContent=e.message;}
+};
+function logout(){TOKEN='';UNITE=null;myPos=null;localStorage.removeItem('sr_token');localStorage.removeItem('sr_unite');clearInterval(autoT);location.reload();}
+$('btnLogout').onclick=logout;
+function enter(){
+  $('loginCard').classList.add('hidden');$('app').classList.remove('hidden');$('tabs').classList.remove('hidden');
+  $('sub').textContent='Territoire : '+UNITE.codeWilaya+' — '+UNITE.wilaya;
+  $('uchip').innerHTML='<span class="unit-chip">'+UNITE.nom+'</span>';
+  initMap();refresh();autoT=setInterval(refresh,5000);
+}
+// --- onglets ---
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  for(const t of ['tab-map','tab-alerts','tab-chasse','tab-stats'])$(t).classList.toggle('hidden',t!==b.dataset.t);
+  if(b.dataset.t==='tab-map'&&map)setTimeout(()=>{map.invalidateSize();},50);
+});
+// --- carte ---
+function initMap(){
+  if(map)return;
+  map=L.map('map').setView([35.5,3.0],6);
+  const bases={'🇫🇷 OSM France':L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',{attribution:'© OSM France © OSM',subdomains:'abc',maxZoom:20}),
+    '🧡 OSM Humanitaire':L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{attribution:'© HOT © OSM',subdomains:'abc',maxZoom:20}),
+    '🛰️ Esri Satellite':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri',maxZoom:19})};
+  bases['🇫🇷 OSM France'].addTo(map);L.control.layers(bases).addTo(map);
+  layer=L.layerGroup().addTo(map);unitsLayer=L.layerGroup().addTo(map);
+  map.on('click',e=>{if(!clickArm)return;clickArm=false;$('btnClick').textContent='👆 Cliquer carte';setPos(e.latlng.lat,e.latlng.lng,'Carte');});
+  // zoom par défaut : wilaya de l'unité via sa position moyenne (unités chargées au refresh)
+}
+function setPos(lat,lon,label){
+  myPos={lat,lon};
+  $('posLabel').value=label+' : '+lat.toFixed(4)+', '+lon.toFixed(4);
+  $('meDot').textContent='📍 Position : '+label+' — filtre « autour » appliqué au prochain refresh';
+  if(meMarker)map.removeLayer(meMarker);
+  meMarker=L.marker([lat,lon],{icon:L.divIcon({className:'',html:'<span style="font-size:24px">🔵</span>',iconSize:[26,26],iconAnchor:[13,13]})}).addTo(map)
+    .bindPopup('Ma position ('+label+')');
+  map.flyTo([lat,lon],12,{duration:.8});
+  refresh();
+}
+$('btnGps').onclick=()=>{
+  if(!navigator.geolocation){log('GPS indisponible');return;}
+  $('btnGps').disabled=true;
+  navigator.geolocation.getCurrentPosition(p=>{$('btnGps').disabled=false;setPos(p.coords.latitude,p.coords.longitude,'GPS');},
+    e=>{$('btnGps').disabled=false;log('GPS refusé/indispo');},{enableHighAccuracy:true,timeout:15000});
+};
+$('btnClick').onclick=()=>{clickArm=!clickArm;$('btnClick').textContent=clickArm?'👆 Touche la carte…':'👆 Cliquer carte';};
+$('btnClearPos').onclick=()=>{myPos=null;if(meMarker){map.removeLayer(meMarker);meMarker=null;}$('posLabel').value='Non définie';$('meDot').textContent='';refresh();};
+$('btnGo').onclick=refresh;
+// --- données ---
+async function refresh(){
+  const q=new URLSearchParams({limit:'1000'});
+  const fi=$('fInf').value,fc=$('fCat').value,fs=$('fStat').value;
+  if(fi!=='all')q.set('infraction',fi);if(fc!=='all')q.set('categorieVehicule',fc);if(fs!=='all')q.set('statut',fs);
+  if(myPos){q.set('lat',myPos.lat);q.set('lon',myPos.lon);q.set('rayon',$('rayon').value);}
+  try{
+    const j=await api('/api/unites/infractions?'+q.toString());
     const list=j.infractions||[];
-    document.getElementById('count').textContent=list.length;
-    document.getElementById('conn').textContent='🟢 '+new Date().toLocaleTimeString();
-    // stats
-    const s=j.stats||{parType:{},parCategorie:{},parStatut:{}};
-    const topType=Object.entries(s.parType).sort((a,b)=>b[1]-a[1])[0];
-    document.getElementById('stats').innerHTML=
-      card(list.length,'Infractions (territoire)')+card(s.parStatut?.nouveau||0,'Nouveaux à traiter')+
-      card((topType?topType[0]+' ('+topType[1]+')':'—'),'Top infraction')+
-      card(Object.keys(s.parCategorie||{}).length,'Catégories véhicule')+
-      card(Object.keys(s.parWilaya||{}).length,'Wilayas touchées');
-    // table — clic sur une ligne = localiser l'infraction sur la carte
-    document.getElementById('rows').innerHTML=list.slice(0,300).map(x=>
-      '<tr class="infrow" data-lat="'+x.latitude+'" data-lon="'+x.longitude+'" data-id="'+x.id+'" style="cursor:pointer" title="Cliquer pour localiser sur la carte"><td>'+new Date(x.recordedAt).toLocaleString('fr-DZ')+'</td><td><b>'+(x.codeWilaya||'')+'</b> '+x.wilaya+'</td>'+
-      '<td>'+x.infraction+'</td><td>'+(x.immatriculation||'')+' <small>'+(x.carId||'')+'</small><br><small>'+(x.conducteurNom||'')+'</small></td>'+
-      '<td>'+(x.categorieVehicule||'')+'</td><td>'+(x.vitesse||0)+' / '+(x.vitesseLimite??'—')+'</td>'+
-      '<td><a href="#" data-lat="'+x.latitude+'" data-lon="'+x.longitude+'" class="goto">'+Number(x.latitude).toFixed(4)+','+Number(x.longitude).toFixed(4)+'</a></td>'+
-      '<td><span class="pill p-'+x.statut+'">'+x.statut+'</span></td>'+
-      '<td>'+(x.statut!=='traite'?'<button data-id="'+x.id+'" class="traite">✔ Traité</button>':'')+'</td></tr>').join('');
-    // map
-    if(!map){map=L.map('map').setView([35.5,3.0],6);
-      const bases={'🇫🇷 OSM France':L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',{attribution:'© OSM France © OSM',subdomains:'abc',maxZoom:20}),
-        '🧡 OSM Humanitaire':L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{attribution:'© HOT © OSM',subdomains:'abc',maxZoom:20}),
-        '🏔️ OSM Topo':L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{attribution:'© OSM © OpenTopoMap',subdomains:'abc',maxZoom:17}),
-        '🛣️ Esri Rues':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri',maxZoom:19}),
-        '⛰️ Esri Topo':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri',maxZoom:19}),
-        '🛰️ Esri Satellite':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri',maxZoom:19}),
-        '🗺️ CARTO Clair':L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{attribution:'© OSM © CARTO',subdomains:'abcd',maxZoom:19}),
-        '🌙 CARTO Sombre':L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OSM © CARTO',subdomains:'abcd',maxZoom:19})};
-      bases['🇫🇷 OSM France'].addTo(map);L.control.layers(bases).addTo(map);layer=L.layerGroup().addTo(map);}
-    layer.clearLayers(); infMarkers=[];
-    const color=i=>i==='exces de vitesse'?'red':i==='zone interdite'?'orange':i==='circulation à contresens'?'purple':i==='conduite longue sans arrêt'?'brown':'blue';
-    list.slice(0,1000).forEach(x=>{
-      const m=L.circleMarker([x.latitude,x.longitude],{radius:6,color:color(x.infraction),fillOpacity:.8}).addTo(layer)
-       .bindPopup('<b>'+x.infraction+'</b><br>'+(x.immatriculation||x.carId)+'<br>'+x.wilaya+' ('+x.codeWilaya+')<br>'+new Date(x.recordedAt).toLocaleString('fr-DZ'));
-      infMarkers.push({id:x.id,marker:m});
-    });
-    // unités police/gendarmerie sur les routes (GeoJSON)
-    if(!unitsLayer){unitsLayer=L.layerGroup().addTo(map);}
-    unitsLayer.clearLayers();
-    if(document.getElementById('showU').checked){
-      try{
-        const uq=new URLSearchParams();
-        if(w!=='all')uq.set('codeWilaya',w);
-        const t=document.getElementById('type').value; if(t!=='all')uq.set('type',t);
-        const mo=document.getElementById('moyen').value; if(mo!=='all')uq.set('moyen',mo);
-        const ur=await fetch(base+'/api/unites/geojson?'+uq.toString());
-        const uj=await ur.json();
-        const emoji=m=>m==='barrage_fixe'?'🚧':m==='barrage_mobile'?'🚔':m==='motards'?'🏍️':m==='vehicule_mobile'?'🚙':'🏢';
-        (uj.features||[]).slice(0,500).forEach(f=>{
-          const p=f.properties, c=f.geometry.coordinates;
-          const ic=L.divIcon({className:'',html:'<span style="font-size:20px">'+emoji(p.moyen)+'</span>',iconSize:[22,22],iconAnchor:[11,11]});
-          L.marker([c[1],c[0]],{icon:ic}).addTo(unitsLayer)
-           .bindPopup('<b>'+p.nom+'</b><br>'+p.code+' · '+(p.mobile?'mobile':'fixe')+'<br>'+(p.telephone||''));
-        });
-        log('OK '+(uj.features||[]).length+' unités');
-      }catch(e){log('unités fail '+e.message);}
-    }
-    if(list.length && !keepView){const b=L.latLngBounds(list.slice(0,1000).map(x=>[x.latitude,x.longitude]));map.fitBounds(b.pad(.1));}
+    lastList=list;
+    drawInf(filtresPerso(list));drawTable(list);drawStats(j.stats||{});
+    // unités du territoire
+    try{
+      const uq=new URLSearchParams();if(myPos){} // territoire imposé serveur
+      const g=await api('/api/unites/geojson?'+uq.toString());
+      drawUnits(g.features||[]);
+      if(!unitsCentered&&(g.features||[]).length){unitsCentered=true;const c=g.features[0].geometry.coordinates;map.flyTo([c[1],c[0]],9,{duration:1});}
+    }catch(e){log('unités: '+e.message);}
     log('OK '+list.length+' infractions');
-  }catch(e){document.getElementById('conn').textContent='🔴 '+e.message;log('fetch fail '+e.message);}
+  }catch(e){
+    if(e.message==='SESSION'){logout();return;}
+    log('fetch: '+e.message);
+  }
 }
-function card(v,l){return '<div class="card"><b>'+v+'</b><span>'+l+'</span></div>';}
-document.getElementById('go').onclick=()=>{loadWilayas();refresh();};
-document.getElementById('auto').onclick=e=>{const b=e.target;if(autoT){clearInterval(autoT);autoT=null;b.textContent='⏱️ Auto: OFF';}else{keepView=true;autoT=setInterval(()=>{keepView=true;refresh();},5000);b.textContent='⏱️ Auto: ON (5s)';keepView=true;refresh();}};
-function locate(lat,lon,id){
-  if(!map)return; keepView=true;
-  map.flyTo([+lat,+lon],15,{duration:.8});
-  const f=infMarkers.find(m=>String(m.id)===String(id));
-  if(f)setTimeout(()=>f.marker.openPopup(),850);
-  document.querySelectorAll('#rows tr').forEach(tr=>tr.style.background=String(tr.dataset.id)===String(id)?'#dbeafe':'');
+function drawInf(list){
+  layer.clearLayers();infMarkers=[];
+  const color=i=>i==='exces de vitesse'?'red':i==='zone interdite'?'orange':i==='circulation à contresens'?'purple':'blue';
+  list.slice(0,800).forEach(x=>{
+    const m=L.circleMarker([x.latitude,x.longitude],{radius:7,color:color(x.infraction),fillOpacity:.85}).addTo(layer)
+      .bindPopup('<b>'+x.infraction+'</b><br>'+(x.immatriculation||x.carId)+'<br>'+new Date(x.recordedAt).toLocaleString('fr-DZ'));
+    infMarkers.push({id:x.id,marker:m});
+  });
 }
+function drawUnits(feats){
+  unitsLayer.clearLayers();
+  const emoji=m=>m==='barrage_fixe'?'🚧':m==='barrage_mobile'?'🚔':m==='motards'?'🏍️':m==='vehicule_mobile'?'🚙':'🏢';
+  feats.slice(0,300).forEach(f=>{
+    const p=f.properties,c=f.geometry.coordinates;
+    L.marker([c[1],c[0]],{icon:L.divIcon({className:'',html:'<span style="font-size:20px">'+emoji(p.moyen)+'</span>',iconSize:[22,22],iconAnchor:[11,11]})})
+     .addTo(unitsLayer).bindPopup('<b>'+p.nom+'</b><br>'+(p.telephone||''));
+  });
+}
+function filtresPerso(list){
+  const vMin=parseFloat($('fVit').value), eMin=parseFloat($('fExc').value);
+  if(Number.isFinite(vMin))list=list.filter(x=>Number(x.vitesse||0)>=vMin);
+  if(Number.isFinite(eMin))list=list.filter(x=>Number(x.exces||0)>=eMin);
+  return list;
+}
+function drawTable(list){
+  const q=($('search').value||'').trim().toLowerCase();
+  if(q)list=list.filter(x=>String(x.immatriculation||'').toLowerCase().includes(q)||String(x.carId||'').toLowerCase().includes(q)||String(x.conducteurNom||'').toLowerCase().includes(q));
+  list=filtresPerso(list);
+  $('count').textContent=list.length;
+  $('rows').innerHTML=list.slice(0,250).map(x=>
+    '<tr class="infrow" data-lat="'+x.latitude+'" data-lon="'+x.longitude+'" data-id="'+x.id+'"><td>'+new Date(x.recordedAt).toLocaleString('fr-DZ')+'</td>'+
+    '<td>'+x.infraction+'</td><td>'+(x.immatriculation||'')+'<br><small>'+(x.carId||'')+'</small></td>'+
+    '<td>'+(x.conducteur?((x.conducteur.prenom||'')+' '+(x.conducteur.nom||'')+(x.conducteur.age!=null?' ('+x.conducteur.age+' ans)':'')):(x.conducteurNom||''))+'</td>'+
+    '<td>'+(x.vitesse||0)+' / '+(x.vitesseLimite??'—')+'</td>'+
+    '<td><span class="pill p-'+x.statut+'">'+x.statut+'</span></td>'+
+      '<td>'+(x.statut!=='traite'?'<button data-id="'+x.id+'" class="traite">✔</button>':'')+'<button data-car="'+(x.carId||'')+'" data-id="'+x.id+'" class="chasse" title="Préparer interception">🚔</button></td></tr>').join('')||'<tr><td colspan="7" style="text-align:center;color:#999">Aucune infraction</td></tr>';
+}
+function drawStats(s){
+  const top=Object.entries(s.parType||{}).sort((a,b)=>b[1]-a[1])[0];
+  $('stats').innerHTML=
+    '<div class="stat"><b>'+(Object.values(s.parStatut||{}).reduce((a,b)=>a+Number(b),0))+'</b><span>Total</span></div>'+
+    '<div class="stat"><b>'+(s.parStatut?.nouveau||0)+'</b><span>Nouveaux</span></div>'+
+    '<div class="stat"><b>'+(top?top[0].split(' ')[0]:'—')+'</b><span>Top ('+(top?top[1]:0)+')</span></div>'+
+    '<div class="stat"><b>'+Object.keys(s.parCategorie||{}).length+'</b><span>Catégories</span></div>';
+}
+let searchT=null;
+document.getElementById('search').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{drawTable(lastList||[]);},250);});
+document.getElementById('fVit').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{drawInf(filtresPerso(lastList||[]));drawTable(lastList||[]);},300);});
+document.getElementById('fExc').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{drawInf(filtresPerso(lastList||[]));drawTable(lastList||[]);},300);});
 document.addEventListener('click',async e=>{
-  if(e.target.classList.contains('goto')){e.preventDefault();locate(e.target.dataset.lat,e.target.dataset.lon,null);}
-  const row=e.target.closest && e.target.closest('tr.infrow');
-  if(row && !e.target.classList.contains('traite')){locate(row.dataset.lat,row.dataset.lon,row.dataset.id);}
-  if(e.target.classList.contains('traite')){
-    const base=document.getElementById('url').value.replace(/\/$/,'');
-    await fetch(base+'/api/unites/infractions',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:+e.target.dataset.id,statut:'traite'})});
-    keepView=true; refresh();
+  const row=e.target.closest&&e.target.closest('tr.infrow');
+  if(row&&!e.target.classList.contains('traite')&&!e.target.classList.contains('chasse')){
+    document.querySelectorAll('#rows tr').forEach(tr=>tr.classList.remove('sel'));row.classList.add('sel');
+    document.querySelector('[data-t="tab-map"]').click();
+    const f=infMarkers.find(m=>String(m.id)===row.dataset.id);
+    map.flyTo([+row.dataset.lat,+row.dataset.lon],15,{duration:.8});
+    if(f)setTimeout(()=>f.marker.openPopup(),850);
+  }
+  if(e.target.classList&&e.target.classList.contains('traite')){
+    try{await api('/api/unites/infractions',{method:'PATCH',body:JSON.stringify({id:+e.target.dataset.id,statut:'traite'})});refresh();}
+    catch(err){log('patch: '+err.message);}
   }
 });
-document.getElementById('go').onclick=()=>{keepView=false;loadWilayas();refresh();};
-['wilaya','type','infraction','cat','statut','moyen'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{keepView=false;}));
-loadWilayas();refresh();
+// --- Interception ---
+let chData=null,chTimer=null,chTargetLayer=null;
+function gotoTab(t){document.querySelector('[data-t="'+t+'"]').click();}
+document.addEventListener('click',async e=>{
+  const b=e.target.classList&&e.target.classList.contains('chasse')?e.target:null;
+  if(!b)return;
+  const car=b.dataset.car||'',id=+b.dataset.id;
+  if(!id){log('pas d id infraction');return;}
+  try{
+    const j=await api('/api/unites/interception?carId='+encodeURIComponent(car)+'&infractionId='+id);
+    chData={...j,infractionId:id};
+    $('chasseVide').classList.add('hidden');$('chasseCard').classList.remove('hidden');
+    $('chImmat').textContent=j.cible.immatriculation||j.cible.carId;
+    $('chInfo').innerHTML='🎯 <b>'+j.cible.vitesse+' km/h</b> · prédit +5 min : <b>'+j.prediction.lat.toFixed(4)+', '+j.prediction.lon.toFixed(4)+'</b> ('+j.prediction.methode+')';
+    $('chUnits').innerHTML=j.unites.length?j.unites.map(u=>'<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px;margin-bottom:6px"><b>'+u.nom+'</b><br><small>'+u.distKm+' km · ETA ~'+u.etaMin+' min'+(u.telephone?' · '+u.telephone:'')+'</small><br><button data-assign="'+u.id+'">✔ Assigner</button></div>').join(''):'<i>Aucune unité mobile dans la wilaya</i>';
+    drawChasse();gotoTab('tab-chasse');
+    log('OK interception prête pour '+car);
+  }catch(err){log('interception: '+err.message);}
+});
+document.addEventListener('click',async e=>{
+  const b=e.target.dataset&&e.target.dataset.assign?e.target:null;
+  if(!b)return;
+  try{
+    const j=await api('/api/unites/interception',{method:'PATCH',body:JSON.stringify({infractionId:chData.infractionId,uniteId:+b.dataset.assign})});
+    log('OK assigné à '+j.unite.code);refresh();
+  }catch(err){log('assign: '+err.message);}
+});
+function drawChasse(){
+  if(chTargetLayer)map.removeLayer(chTargetLayer);
+  chTargetLayer=L.layerGroup().addTo(map);
+  if(!chData)return;
+  const c=chData.cible,p=chData.prediction;
+  L.marker([c.latitude,c.longitude],{icon:L.divIcon({className:'',html:'<span style="font-size:26px">🎯</span>',iconSize:[28,28],iconAnchor:[14,14]})}).addTo(chTargetLayer).bindPopup('Cible '+(c.immatriculation||c.carId));
+  L.marker([p.lat,p.lon],{icon:L.divIcon({className:'',html:'<span style="font-size:26px">🏁</span>',iconSize:[28,28],iconAnchor:[14,14]})}).addTo(chTargetLayer).bindPopup('Point prédit +5 min');
+  L.polyline([[c.latitude,c.longitude],[p.lat,p.lon]],{color:'red',dashArray:'6,6'}).addTo(chTargetLayer);
+  map.flyTo([p.lat,p.lon],12,{duration:1});
+}
+function gotoTabSilent(t){document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('on'));document.querySelector('[data-t="'+t+'"]').classList.add('on');for(const s of ['tab-map','tab-alerts','tab-chasse','tab-stats'])$(s).classList.toggle('hidden',s!==t);setTimeout(()=>{map.invalidateSize();},50);}
+$('btnSuivre').onclick=()=>{
+  if(chTimer){clearInterval(chTimer);chTimer=null;$('btnSuivre').textContent='▶️ Suivre en direct';return;}
+  $('btnSuivre').textContent='⏸️ Suivi ON (5 s)';
+  const tick=async()=>{
+    try{
+      const j=await api('/api/unites/interception?carId='+encodeURIComponent(chData.cible.carId||'')+'&infractionId='+(chData.infractionId||0));
+      chData={...chData,...j,infractionId:chData.infractionId};drawChasse();
+    }catch(err){log('suivi: '+err.message);}
+  };
+  tick();chTimer=setInterval(tick,5000);
+};
+$('btnNav').onclick=()=>{
+  if(!chData)return;const p=chData.prediction;
+  const urls=['google.navigation:q='+p.lat+','+p.lon,'geo:'+p.lat+','+p.lon+'?q='+p.lat+','+p.lon+'(Interception)'];
+  for(const u of urls){try{location.href=u;return;}catch(e){}}
+};
+$('btnStopCh').onclick=()=>{if(chTimer)clearInterval(chTimer);chTimer=null;$('btnSuivre').textContent='▶️ Suivre en direct';if(chTargetLayer){map.removeLayer(chTargetLayer);chTargetLayer=null;}chData=null;$('chasseCard').classList.add('hidden');$('chasseVide').classList.remove('hidden');};
+// session persistée ?
+(function(){try{
+  const b=localStorage.getItem('sr_base'),t=localStorage.getItem('sr_token'),u=localStorage.getItem('sr_unite');
+  if(b&&t&&u){BASE=b;TOKEN=t;UNITE=JSON.parse(u);$('url').value=b;enter();}
+}catch(e){}})();
 </script>
 </body>
 </html>

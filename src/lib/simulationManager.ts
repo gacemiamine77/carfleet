@@ -24,6 +24,7 @@ import {
   COULEURS_VOITURES,
   CAR_MAP_COLORS,
   WILAYAS,
+  WILAYA_CENTERS,
   generateNIN,
   generatePhone,
   generateImmatriculation,
@@ -49,6 +50,7 @@ export interface SimulationConfig {
   customOrigin?: string | null;
   customDestination?: string | null;
   sourceDonnees?: "aleatoire" | "registre"; // registre = vrais inscrits (propriétaires-app)
+  attenteExterne?: boolean; // true = sim vide qui attend des dispositifs externes (EXT-*)
 }
 
 export interface RegistreTriplet { proprietaire: Proprietaire; voiture: Voiture; conducteur: Conducteur; }
@@ -194,10 +196,18 @@ function nearestRoadPt(idx: WilayaRoadIndex, lat: number, lon: number, maxDistM:
   }
   return best;
 }
-const ALL_WILAYAS = Array.from({ length: 58 }, (_, i) => String(i + 1).padStart(2, "0"));
+// Wilaya la plus proche (évite de charger les 449 Mo quand l'origine est inconnue, ex. EXT sans nom)
+function nearestWilayaCode(lat: number, lon: number): string {
+  let best = "16", bestD = Infinity;
+  for (const [code, c] of Object.entries(WILAYA_CENTERS)) {
+    const d = haversineDistance(lat, lon, c[0], c[1]);
+    if (d < bestD) { bestD = d; best = code; }
+  }
+  return best;
+}
 function getOsmMaxSpeedForPosition(lat: number, lon: number, wilayaCode?: string): number | null {
   try {
-    const codes = wilayaCode ? [wilayaCode] : ALL_WILAYAS;
+    const codes = wilayaCode && wilayaCode !== "00" ? [wilayaCode] : [nearestWilayaCode(lat, lon)];
     for (const code of codes) {
       const idx = loadWilayaRoads(code);
       if (!idx) continue;
@@ -210,7 +220,7 @@ function getOsmMaxSpeedForPosition(lat: number, lon: number, wilayaCode?: string
 
 function getOsmRestrictionsForPosition(lat: number, lon: number, wilayaCode?: string): any | null {
   try {
-    const codes = wilayaCode ? [wilayaCode] : ALL_WILAYAS;
+    const codes = wilayaCode && wilayaCode !== "00" ? [wilayaCode] : [nearestWilayaCode(lat, lon)];
     for (const code of codes) {
       const idx = loadWilayaRoads(code);
       if (!idx) continue;
@@ -774,6 +784,10 @@ export function startSimulation(): SimulationState | null {
 export function stopSimulation() { const state = getSimulation(); if (state) { state.running = false; if (state.intervalHandle) { clearInterval(state.intervalHandle); state.intervalHandle = null; } } }
 export function tickSimulation() {
   const state = getSimulation(); if (!state) return null;
+  // Stop = stop : aucun avancement si la sim n'est pas en cours
+  // (sinon un 2ᵉ onglet qui poll encore fait continuer la sim en arrière-plan).
+  // Exception : attente externe (positions poussées par les dispositifs).
+  if (!state.running && !(state.config as any)?.attenteExterne) return state;
   const reps = Math.max(1, Math.floor(state.config.timeMultiplier));
   const baseDt = state.config.recordIntervalSec;
   let allTerminated = true;
@@ -782,15 +796,24 @@ export function tickSimulation() {
     const now = new Date(state.startedAt + state.simulatedElapsedSec * 1000);
     let repAllTerminated = true;
     state.cars.forEach((c, i) => {
-      // EXT-* : position pilotée par l'app externe (OSM) → ne pas avancer/recycler côté serveur
-      if (c.voiture.carId.startsWith("EXT-")) {
-        if (c.status === "en route") repAllTerminated = false;
-        return;
+      // EXT-* : position pilotée par l'app externe (OSM) → pas d'avancement serveur,
+      // MAIS détection d'infractions sur les positions reçues (but de l'app).
+      const isExt = c.voiture.carId.startsWith("EXT-");
+      let car: CarState;
+      if (isExt) {
+        car = state.cars[i];
+        if (!isCarTerminated(car.status)) repAllTerminated = false;
+      } else {
+        // Avance d'un pas réel de recordIntervalSec simulé, répété timeMultiplier fois
+        const res = advanceCarAlongRoute(state.cars[i], baseDt);
+        car = res.car;
       }
-      // Avance d'un pas réel de recordIntervalSec simulé, répété timeMultiplier fois
-      const { car } = advanceCarAlongRoute(state.cars[i], baseDt);
-      // Réseau perso : enchaîne les tronçons au lieu de terminer après 500m
-      if (isCarTerminated(car.status) && state.customRoads?.features.length) {
+      // EXT : positions en temps réel → une seule évaluation par tick (pas par sous-tick
+      // simulé, sinon seuils/throttles 60× trop rapides + spam), horodatage réel.
+      if (isExt && r !== 0) return;
+      const nowEff = isExt ? new Date() : now;
+      // Réseau perso : enchaîne les tronçons au lieu de terminer après 500m (voitures simu)
+      if (!isExt && isCarTerminated(car.status) && state.customRoads?.features.length) {
         car.status = "idle"; car.needsNewRoute = true; state.routeFetchQueue.add(car.voiture.carId);
         // Ne compte pas comme terminé pour l'arrêt global
         repAllTerminated = false;
@@ -815,7 +838,7 @@ export function tickSimulation() {
           const limitKmh = effectiveLimit as number;
           if (car.speed > limitKmh + 5) {
             const lastAt = state.lastInfractionAt.get(car.voiture.carId) || 0;
-            const nowMs = now.getTime();
+            const nowMs = nowEff.getTime();
             if (nowMs - lastAt > 10000) {
               const inf = {
                 id: uuidv4(),
@@ -830,7 +853,7 @@ export function tickSimulation() {
                 excess: Math.round((car.speed - limitKmh) * 10) / 10,
                 lat: car.lat,
                 lon: car.lon,
-                recordedAt: now.toISOString(),
+                recordedAt: nowEff.toISOString(),
                 itineraireId: car.itineraireActuel.id,
               } as SpeedInfraction;
               state.infractions.push(inf);
@@ -847,7 +870,7 @@ export function tickSimulation() {
         const zoneReason = checkZoneInterdite(car.voiture, roadProps);
         if (zoneReason) {
           const lastAtZ = state.lastInfractionAt.get(car.voiture.carId + "_zone") || 0;
-          const nowMsZ = now.getTime();
+          const nowMsZ = nowEff.getTime();
           if (nowMsZ - lastAtZ > 20000) {
             const infZ = {
               id: uuidv4(),
@@ -863,7 +886,7 @@ export function tickSimulation() {
               restriction: zoneReason,
               lat: car.lat,
               lon: car.lon,
-              recordedAt: now.toISOString(),
+              recordedAt: nowEff.toISOString(),
               itineraireId: car.itineraireActuel.id,
             } as SpeedInfraction;
             state.infractions.push(infZ);
@@ -888,7 +911,7 @@ export function tickSimulation() {
             if (diff > 180) diff = 360 - diff;
             if (diff > 90) {
               const lastAtC = state.lastInfractionAt.get(car.voiture.carId + "_contra") || 0;
-              const nowMsC = now.getTime();
+              const nowMsC = nowEff.getTime();
               if (nowMsC - lastAtC > 15000) {
                 const infC = {
                   id: uuidv4(),
@@ -904,7 +927,7 @@ export function tickSimulation() {
                   restriction: `Sens unique oneway=${onewayVal} cap ${Math.round(car.heading)}° vs route ${Math.round(allowed)}° diff ${Math.round(diff)}°`,
                   lat: car.lat,
                   lon: car.lon,
-                  recordedAt: now.toISOString(),
+                  recordedAt: nowEff.toISOString(),
                   itineraireId: car.itineraireActuel.id,
                 } as SpeedInfraction;
                 state.infractions.push(infC);
@@ -927,7 +950,7 @@ export function tickSimulation() {
           const isNoParking = roadForStop && (roadForStop.no_parking === "yes" || roadForStop["parking:lane:both"] === "no_parking" || roadForStop.parking === "no");
           if (stoppedSec >= 5 && isNoStopping) {
             const lastAtS = state.lastInfractionAt.get(car.voiture.carId + "_stop") || 0;
-            if (now.getTime() - lastAtS > 30000) {
+            if (nowEff.getTime() - lastAtS > 30000) {
               const infS = {
                 id: uuidv4(),
                 carId: car.voiture.carId,
@@ -939,15 +962,15 @@ export function tickSimulation() {
                 speed: 0, speedLimit: 9999, excess: 0,
                 restriction: `Arrêt interdit (no_stopping)`,
                 lat: car.lat, lon: car.lon,
-                recordedAt: now.toISOString(),
+                recordedAt: nowEff.toISOString(),
                 itineraireId: car.itineraireActuel.id,
               } as SpeedInfraction;
               state.infractions.push(infS);
-              state.lastInfractionAt.set(car.voiture.carId + "_stop", now.getTime());
+              state.lastInfractionAt.set(car.voiture.carId + "_stop", nowEff.getTime());
             }
           } else if (stoppedSec >= 60 && isNoParking) {
             const lastAtP = state.lastInfractionAt.get(car.voiture.carId + "_park") || 0;
-            if (now.getTime() - lastAtP > 60000) {
+            if (nowEff.getTime() - lastAtP > 60000) {
               const infP = {
                 id: uuidv4(),
                 carId: car.voiture.carId,
@@ -959,11 +982,11 @@ export function tickSimulation() {
                 speed: 0, speedLimit: 9999, excess: 0,
                 restriction: `Stationnement interdit (no_parking) depuis ${Math.round(stoppedSec)}s`,
                 lat: car.lat, lon: car.lon,
-                recordedAt: now.toISOString(),
+                recordedAt: nowEff.toISOString(),
                 itineraireId: car.itineraireActuel.id,
               } as SpeedInfraction;
               state.infractions.push(infP);
-              state.lastInfractionAt.set(car.voiture.carId + "_park", now.getTime());
+              state.lastInfractionAt.set(car.voiture.carId + "_park", nowEff.getTime());
             }
           }
         }
@@ -979,7 +1002,7 @@ export function tickSimulation() {
         }
         if (car.continuousDrivingSec > maxHours * 3600) {
           const lastAtL = (car as any).lastInfractionLongDriveAt || 0;
-          const nowMsL = now.getTime();
+          const nowMsL = nowEff.getTime();
           if (nowMsL - lastAtL > 60000) {
             const hours = (car.continuousDrivingSec / 3600).toFixed(1);
             const infL = {
@@ -996,7 +1019,7 @@ export function tickSimulation() {
               restriction: `Conduite continue ${hours}h sans arrêt > ${maxHours}h`,
               lat: car.lat,
               lon: car.lon,
-              recordedAt: now.toISOString(),
+              recordedAt: nowEff.toISOString(),
               itineraireId: car.itineraireActuel.id,
             } as SpeedInfraction;
             state.infractions.push(infL);
@@ -1006,8 +1029,11 @@ export function tickSimulation() {
         }
       }
       // Un footprint par intervale configuré -> respecte strictement recordIntervalSec
-      const records = state.footprintRecords.get(car.voiture.carId);
-      if (records) records.push({ itineraireId: car.itineraireActuel.id, carId: car.voiture.carId, latitude: car.lat, longitude: car.lon, altitude: 0, vitesse: car.speed, acceleration: car.acceleration, cap: car.heading, distanceCumulee: car.distanceTraveled, recordedAt: now.toISOString(), deltaSecondes: baseDt, statut: car.status, estInterruption: false });
+      // (EXT : déjà poussé par /api/external/track à chaque POST → pas de doublon)
+      if (!isExt) {
+        const records = state.footprintRecords.get(car.voiture.carId);
+        if (records) records.push({ itineraireId: car.itineraireActuel.id, carId: car.voiture.carId, latitude: car.lat, longitude: car.lon, altitude: 0, vitesse: car.speed, acceleration: car.acceleration, cap: car.heading, distanceCumulee: car.distanceTraveled, recordedAt: nowEff.toISOString(), deltaSecondes: baseDt, statut: car.status, estInterruption: false });
+      }
     });
     if (!repAllTerminated) allTerminated = false;
     if (repAllTerminated && state.cars.length > 0) { stopSimulation(); break; }

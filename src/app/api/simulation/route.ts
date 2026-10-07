@@ -182,6 +182,14 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  if (action === "create-external") {
+    // Sim vide qui attend des dispositifs externes : aucun véhicule local,
+    // les EXT-* s'ajoutent via POST /api/external/track et s'affichent live.
+    const { createSimulation: mkSim } = await import("@/lib/simulationManager");
+    const state = mkSim({ numCars: 0, attenteExterne: true } as any);
+    return NextResponse.json({ ok: true, attenteExterne: true, sessionId: state.sessionId });
+  }
+
   if (action === "start") {
     const state = startSimulation();
     return NextResponse.json({ ok: true, running: !!state?.running });

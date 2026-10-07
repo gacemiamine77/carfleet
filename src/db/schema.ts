@@ -277,6 +277,7 @@ export const infractionsConstatees = pgTable("infractions_constatees", {
   codeWilaya: varchar("code_wilaya", { length: 4 }),
   wilaya: varchar("wilaya", { length: 100 }),
   uniteId: integer("unite_id").references(() => unitesSecurite.id),
+  assigneUniteId: integer("assigne_unite_id").references(() => unitesSecurite.id),
   statut: statutAlerteEnum("statut").notNull().default("nouveau"),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

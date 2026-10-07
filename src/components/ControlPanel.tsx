@@ -22,6 +22,7 @@ interface Props {
   config: any;
   onConfigChange: (config: any) => void;
   onPrepare: () => void;
+  onWaitExternal?: () => void;
   onGo: () => void;
   onStop: () => void;
   onFlush: () => void;
@@ -37,6 +38,7 @@ export default function ControlPanel({
   config,
   onConfigChange,
   onPrepare,
+  onWaitExternal,
   onGo,
   onStop,
   onFlush,
@@ -277,12 +279,21 @@ export default function ControlPanel({
       {/* Action Buttons - Préparer puis GO */}
       <div className="flex gap-2 pt-2">
         {!prepared && !running ? (
-          <button
-            onClick={onPrepare}
-            className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-all shadow-md hover:shadow-lg active:scale-95"
-          >
-            🛠️ Préparer
-          </button>
+          <>
+            <button
+              onClick={onPrepare}
+              className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-all shadow-md hover:shadow-lg active:scale-95"
+            >
+              🛠️ Préparer
+            </button>
+            <button
+              onClick={onWaitExternal}
+              title="Sim vide : attend les dispositifs externes (app externe / GPS) et affiche leurs mouvements live"
+              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-all shadow-md hover:shadow-lg active:scale-95"
+            >
+              📡 Externe
+            </button>
+          </>
         ) : prepared && !running ? (
           <>
             <button

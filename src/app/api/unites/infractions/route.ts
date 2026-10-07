@@ -88,6 +88,34 @@ export async function GET(req: NextRequest) {
   else withDist.sort((a, b) => new Date(b.r.recordedAt).getTime() - new Date(a.r.recordedAt).getTime());
   filtered = withDist.slice(0, limit).map((x) => (hasPos ? { ...x.r, distM: x.distM } : x.r));
 
+  // 2b. Détails conducteur (nom, prénom, âge, tél) via la table conducteurs
+  let condParNom = new Map<string, any>();
+  try {
+    const { conducteurs } = await import("@/db/schema");
+    const tous = await db.select().from(conducteurs).limit(5000);
+    const age = (d: any) => {
+      if (!d) return null;
+      const dn = new Date(d), now = new Date();
+      let a = now.getFullYear() - dn.getFullYear();
+      const m = now.getMonth() - dn.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < dn.getDate())) a--;
+      return a;
+    };
+    for (const c of tous) {
+      condParNom.set(`${(c.prenom || "").toLowerCase()}|${(c.nom || "").toLowerCase()}`, {
+        nom: c.nom, prenom: c.prenom, age: age(c.dateNaissance), telephone: c.telephone,
+        numeroPermis: (c as any).numeroPermis || null,
+      });
+    }
+  } catch {}
+  const avecCond = filtered.map((r) => {
+    const parts = String(r.conducteurNom || "").trim().split(/\s+/);
+    const prenom = parts[0] || "", nom = parts.slice(1).join(" ");
+    const hit = condParNom.get(`${prenom.toLowerCase()}|${nom.toLowerCase()}`);
+    return { ...r, conducteur: hit || { nom: nom || null, prenom: prenom || null, age: null, telephone: null } };
+  });
+  filtered = avecCond as any;
+
   // 3. Stats pour le territoire filtré
   const parType: Record<string, number> = {};
   const parCategorie: Record<string, number> = {};

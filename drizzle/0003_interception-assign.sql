@@ -1,0 +1,2 @@
+ALTER TABLE "infractions_constatees" ADD COLUMN "assigne_unite_id" integer;--> statement-breakpoint
+ALTER TABLE "infractions_constatees" ADD CONSTRAINT "infractions_constatees_assigne_unite_id_unites_securite_id_fk" FOREIGN KEY ("assigne_unite_id") REFERENCES "public"."unites_securite"("id") ON DELETE no action ON UPDATE no action;

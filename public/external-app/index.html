@@ -8,6 +8,7 @@
 <p>Départ/Arrivée → géocodage <b>OSM Nominatim</b> → route <b>OSRM (données OSM)</b> → envoi position chaque X sec.</p>
 <label>URL plateforme <input id="url" value="http://192.168.0.2:3000"></label><br>
 <label>Intervalle (s) <input id="interval" type="number" value="2" min="1" max="10"></label><br>
+<label>Accélération <input id="mult" type="number" value="1" min="1" max="60"> <small>×1 temps réel … ×60 comme la simu (modifiable)</small></label><br>
 <label>Nombre de véhicules <input id="numCars" type="number" value="5" min="1" max="20"></label><br>
 <div id="vehicules"></div>
 <button id="gen" style="background:#3b82f6;margin:8px 0">🔧 Générer 5 véhicules exemple</button>
@@ -92,6 +93,7 @@ genVehicules(5);
 document.getElementById("start").onclick=async ()=>{
   const base=document.getElementById("url").value.replace(/\/$/,"");
   const interval=parseFloat(document.getElementById("interval").value)||2;
+  const mult=Math.min(60,Math.max(1,parseFloat(document.getElementById("mult").value)||1));
   const endpoint=base+"/api/external/track";
   document.getElementById("start").style.display="none";
   document.getElementById("stop").style.display="inline-block";
@@ -115,7 +117,7 @@ document.getElementById("start").onclick=async ()=>{
     const payload=cars.map(c=>{
       let speed=40+Math.random()*20, heading=c.heading||0;
       if(c._route&&c._route.length>=2){
-        let remaining=speed*interval/3.6/1000; // km par tick
+        let remaining=speed*interval*mult/3.6/1000; // km par tick (× accélération)
         let guard=0;
         while(remaining>0&&guard++<20){
           const cur={lat:c.lat,lon:c.lon};
@@ -128,19 +130,23 @@ document.getElementById("start").onclick=async ()=>{
         }
       } else {
         speed=20+Math.random()*50; heading=(c.heading+(Math.random()-0.5)*30+360)%360;
-        const dd=(speed*interval/3600)/111;
+        const dd=(speed*interval*mult/3600)/111;
         c.lat+=Math.cos(heading*Math.PI/180)*dd*0.7;
         c.lon+=Math.sin(heading*Math.PI/180)*dd*0.7;
         c.lat=Math.max(32.5,Math.min(37.5,c.lat)); c.lon=Math.max(-2.5,Math.min(9.0,c.lon));
       }
       c.heading=heading;
+      // Carburant simulé comme un vrai dispositif (baisse avec la distance, plancher 5%)
+      if(c.fuel==null) c.fuel=40+Math.random()*50;
+      c.fuel=Math.max(5, c.fuel - speed*interval*mult/3600*0.35);
       return {carId:c.carId, lat:+c.lat.toFixed(5), lon:+c.lon.toFixed(5), speed:+speed.toFixed(1), heading:Math.round(heading),
+        fuel:+c.fuel.toFixed(0), timestamp:new Date().toISOString(),
         marque:c.marque, modele:c.modele, immatriculation:c.immatriculation, categorieVehicule:c.categorieVehicule, hauteur:c.hauteur, largeur:c.largeur,
         proprietaireNom:c.proprietaireNom, conducteurNom:c.conducteurNom,
         origin:c._o||undefined, destination:c._d||undefined, originName:c.originName, destName:c.destName};
     });
     const body=JSON.stringify({cars:payload, sessionId:session});
-    log("REQ","#"+tickCount+" POST "+endpoint+" | "+payload.length+" voitures OSM | "+payload.slice(0,3).map(p=>p.carId+" "+p.lat+","+p.lon).join(" ; ")+(payload.length>3?" ...":""));
+    log("REQ","#"+tickCount+" POST "+endpoint+" ×"+mult+" | "+payload.length+" voitures OSM | "+payload.slice(0,3).map(p=>p.carId+" "+p.lat+","+p.lon).join(" ; ")+(payload.length>3?" ...":""));
     try{ const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body}); const t=await r.text(); log(r.ok?"ok":"err","#"+tickCount+" <- "+r.status+" "+t.slice(0,150)); }
     catch(e){ log("err","#"+tickCount+" ERREUR fetch "+e.message); }
   }

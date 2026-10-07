@@ -29,6 +29,7 @@ export async function POST() {
   const allTerminated = state.cars.length > 0 && state.cars.every((c) => c.status === "terminé" || c.status === "arrivée" || c.status === "termine");
   return NextResponse.json({
     running: state.running,
+    attenteExterne: !!(state.config as any)?.attenteExterne,
     allTerminated,
     customRoads: state.customRoads,
     carsGeoJSON: carsToGeoJSON(state.cars),
