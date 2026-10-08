@@ -47,6 +47,10 @@ export async function POST(req: NextRequest) {
     const ex = await db.select({ id: voitures.id }).from(voitures).where(eq(voitures.immatriculation, String(b.immatriculation))).limit(1);
     if (ex.length) return NextResponse.json({ error: "Immatriculation déjà enregistrée" }, { status: 409 });
     const count = await db.select().from(voitures).where(eq(voitures.proprietaireId, auth.proprietaire.id));
+    // Règle : une seule voiture par dispositif/compte
+    if (count.length >= 1) {
+      return NextResponse.json({ error: "Un seul véhicule par dispositif (déjà : " + count[0].immatriculation + ")" }, { status: 409 });
+    }
     // N° de série virtuel du dispositif : fourni par l'app ou généré ici (unique)
     let serial = typeof b.numeroSerie === "string" && b.numeroSerie.trim() ? b.numeroSerie.trim().slice(0, 40) : "";
     if (!serial) {

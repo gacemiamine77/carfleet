@@ -61,6 +61,20 @@ class VehicleFragment : Fragment() {
         if (session.hasVehicle) {
             tvSerial.text = "N° série : ${session.serial}\ncarId : ${session.carId}\n${session.marque} ${session.modele} (${session.immat})"
         }
+        // Règle 1 voiture/dispositif : vérifie côté serveur et masque le formulaire si déjà inscrit
+        lifecycleScope.launch {
+            if (!session.isLogged) return@launch
+            try {
+                ApiClient.init(session.baseUrl)
+                val mine = ApiClient.service().myVehicles(session.authHeader).vehicules
+                if (mine.isNotEmpty()) {
+                    val v = mine[0]
+                    tvSerial.text = "Déjà inscrit : ${v.marque ?: ""} ${v.modele ?: ""} (${v.immatriculation})\ncarId : ${v.carId}"
+                    view.findViewById<Button>(R.id.btnAdd).isEnabled = false
+                    tvErr.text = "Un seul véhicule par dispositif"
+                }
+            } catch (_: Exception) { }
+        }
         view.findViewById<Button>(R.id.btnAdd).setOnClickListener {
             if (!session.isLogged) {
                 tvErr.text = "Crée d'abord ton compte (onglet Compte)"

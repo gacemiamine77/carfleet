@@ -18,6 +18,11 @@ export async function POST(req: NextRequest) {
     if (!v.length || v[0].proprietaireId !== auth.proprietaire.id) {
       return NextResponse.json({ error: "Véhicule introuvable" }, { status: 404 });
     }
+    // Règle : un seul chauffeur par dispositif (même remplacé, l'historique reste)
+    const deja = await db.select({ id: affectations.id }).from(affectations).where(eq(affectations.voitureId, v[0].id)).limit(1);
+    if (deja.length) {
+      return NextResponse.json({ error: "Un seul chauffeur par dispositif (déjà désigné)" }, { status: 409 });
+    }
     const nin = `CH-${Date.now()}`.slice(0, 20);
     const [cond] = await db.insert(conducteurs).values({
       nin, nom: String(b.nom).slice(0, 100), prenom: String(b.prenom).slice(0, 100),

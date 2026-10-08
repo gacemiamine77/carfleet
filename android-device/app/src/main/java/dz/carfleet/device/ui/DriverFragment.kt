@@ -50,6 +50,12 @@ class DriverFragment : Fragment() {
                 try {
                     val res = ApiClient.service().myVehicles(session.authHeader)
                     vehicules = res.vehicules
+                    // Règle 1 chauffeur : déjà désigné → formulaire verrouillé
+                    val ch = vehicules.firstOrNull()?.chauffeur
+                    if (ch != null) {
+                        tvErr.text = "Chauffeur déjà désigné : ${ch.prenom} ${ch.nom} (un seul par dispositif)"
+                        view.findViewById<Button>(R.id.btnAdd).isEnabled = false
+                    }
                     spVeh.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item,
                         vehicules.map { "${it.immatriculation} — ${it.marque ?: ""} ${it.modele ?: ""}".trim() }).apply {
                         setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)

@@ -104,6 +104,7 @@ export default function Home() {
   const [unites, setUnites] = useState<any[]>([]);
   const [vehiculesInscrits, setVehiculesInscrits] = useState<any[]>([]);
   const [searchVeh, setSearchVeh] = useState("");
+  const [comptesProprio, setComptesProprio] = useState<any[]>([]);
   const [searchVehRO, setSearchVehRO] = useState(true);
   const [comptes, setComptes] = useState<any[]>([]);
   const [cWilaya, setCWilaya] = useState("");
@@ -153,7 +154,10 @@ export default function Home() {
   useEffect(() => {
     if (activeTab !== "vehicules") return;
     fetch("/api/admin/vehicules-inscrits").then(r=>r.json()).then(d=> setVehiculesInscrits(d.vehicules || [])).catch(()=> setVehiculesInscrits([]));
+    fetch("/api/admin/comptes-proprietaires").then(r=>r.json()).then(d=> setComptesProprio(d.comptes || [])).catch(()=> setComptesProprio([]));
   }, [activeTab]);
+
+  const reloadComptesProprio = () => fetch("/api/admin/comptes-proprietaires").then(r=>r.json()).then(d=> setComptesProprio(d.comptes || [])).catch(()=>{});
 
   const reverseGeocodeFE = async (lat:number, lon:number) => {
     try {
@@ -684,6 +688,33 @@ export default function Home() {
             </div>
           </div>
           <p className="text-xs text-gray-500">Registre des propriétaires inscrits (avec compte) : ces véhicules et chauffeurs sont utilisés par la simulation en mode « Registre ».</p>
+        </div>
+        <div className="bg-white rounded-xl shadow p-4 border">
+          <h3 className="font-bold text-sm mb-2">👤 Comptes propriétaires — {comptesProprio.length}</h3>
+          <div className="max-h-[28vh] overflow-auto border rounded">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr className="text-left text-gray-500"><th className="px-3 py-1.5">Utilisateur</th><th className="px-3 py-1.5">Propriétaire</th><th className="px-3 py-1.5">Tél</th><th className="px-3 py-1.5">Véhicules</th><th className="px-3 py-1.5">Statut</th><th className="px-3 py-1.5">Actions</th></tr>
+              </thead>
+              <tbody>
+                {!comptesProprio.length ? (
+                  <tr><td colSpan={6} className="text-center py-6 text-gray-400">Aucun compte propriétaire</td></tr>
+                ) : comptesProprio.map((c:any)=>(
+                  <tr key={c.id} className="border-t hover:bg-emerald-50">
+                    <td className="px-3 py-1 font-mono font-semibold">{c.username}</td>
+                    <td className="px-3 py-1">{c.proprietaire?.nom}</td>
+                    <td className="px-3 py-1">{c.proprietaire?.telephone}</td>
+                    <td className="px-3 py-1">{c.nbVehicules}</td>
+                    <td className="px-3 py-1">{c.actif ? <span className="px-1.5 py-0.5 rounded text-[11px] bg-green-100 text-green-800">actif</span> : <span className="px-1.5 py-0.5 rounded text-[11px] bg-gray-200 text-gray-600">bloqué</span>}</td>
+                    <td className="px-3 py-1 flex gap-1 flex-wrap">
+                      <button onClick={async ()=>{ await fetch("/api/admin/comptes-proprietaires",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:c.id,actif:!c.actif})}); reloadComptesProprio(); }} className="text-[11px] bg-white border px-2 py-0.5 rounded hover:bg-gray-50">{c.actif ? "⛔ Bloquer" : "▶️ Débloquer"}</button>
+                      <button onClick={async ()=>{ if(!window.confirm(`Supprimer le compte ${c.username} ? (données conservées)`)) return; await fetch(`/api/admin/comptes-proprietaires?id=${c.id}`,{method:"DELETE"}); reloadComptesProprio(); }} className="text-[11px] bg-white border px-2 py-0.5 rounded hover:bg-red-50 text-red-600">🗑️ Compte</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
         <div className="bg-white rounded-xl shadow border overflow-hidden">
           <div className="max-h-[55vh] overflow-auto">

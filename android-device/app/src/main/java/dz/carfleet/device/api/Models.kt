@@ -47,12 +47,20 @@ data class AddVehicleRequest(
     val numeroSerie: String? = null
 )
 
+data class ChauffeurInfo(
+    val id: Int = 0,
+    val nom: String? = null,
+    val prenom: String? = null,
+    val telephone: String? = null
+)
+
 data class OwnedVehicle(
     val id: Int = 0,
     val carId: String = "",
     val immatriculation: String = "",
     val marque: String? = null,
-    val modele: String? = null
+    val modele: String? = null,
+    val chauffeur: ChauffeurInfo? = null
 )
 
 data class MyVehiclesResponse(
