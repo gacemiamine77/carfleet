@@ -8,7 +8,8 @@ data class RegisterRequest(
     val prenom: String,
     val age: Int,
     val telephone: String,
-    val wilaya: String? = null
+    val wilaya: String? = null,
+    val codeWilaya: String? = null
 )
 
 data class Proprietaire(
@@ -41,8 +42,30 @@ data class AddVehicleRequest(
     val immatriculation: String,
     val marque: String? = null,
     val modele: String? = null,
+    val couleur: String? = null,
     val categorieVehicule: String = "leger",
     val numeroSerie: String? = null
+)
+
+data class OwnedVehicle(
+    val id: Int = 0,
+    val carId: String = "",
+    val immatriculation: String = "",
+    val marque: String? = null,
+    val modele: String? = null
+)
+
+data class MyVehiclesResponse(
+    val vehicules: List<OwnedVehicle> = emptyList()
+)
+
+data class AddDriverRequest(
+    val voitureId: Int,
+    val nom: String,
+    val prenom: String,
+    val telephone: String,
+    val numeroPermis: String? = null,
+    val wilaya: String? = null
 )
 
 data class VehiculeInfo(

@@ -4,10 +4,13 @@ import { carsToGeoJSON } from "@/lib/simulation";
 
 // POST - advance simulation by one tick and return new state
 export async function POST() {
+  const t0 = Date.now();
   const state = tickSimulation();
   if (!state) {
     return NextResponse.json({ error: "No simulation running" }, { status: 404 });
   }
+  const { recordTick } = await import("@/lib/metrics");
+  recordTick(Date.now() - t0);
 
   const bufferStats = getBufferStats();
 

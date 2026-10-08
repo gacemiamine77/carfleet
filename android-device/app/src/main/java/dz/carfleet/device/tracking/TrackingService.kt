@@ -19,8 +19,10 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
-import dz.carfleet.device.R
+import com.google.gson.Gson
 import dz.carfleet.device.api.ApiClient
+import dz.carfleet.device.data.PendingDb
+import dz.carfleet.device.data.PendingPoint
 import dz.carfleet.device.data.SessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,18 +30,26 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import kotlin.math.atan2
 
-/** Envoi continu GPS + accéléromètre + gyroscope vers POST /api/external/track. */
+/**
+ * Envoi continu GPS + accéléromètre + gyroscope vers POST /api/external/track.
+ * Si le serveur est injoignable/occupé : le point est stocké dans une file
+ * locale (Room) et renvoyé dans l'ordre dès que la connexion est rétablie.
+ */
 class TrackingService : Service(), SensorEventListener {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var sendJob: Job? = null
     private lateinit var session: SessionManager
+    private val gson = Gson()
+    private val sendMutex = Mutex()
 
     // Dernières valeurs capteurs
     @Volatile private var ax = 0.0
@@ -74,6 +84,11 @@ class TrackingService : Service(), SensorEventListener {
         }
         sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)?.also {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+        scope.launch {
+            // Points de plus de 7 jours : périmés, on les jette
+            PendingDb.get(this@TrackingService).dao()
+                .purgeOlderThan(System.currentTimeMillis() - 7 * 86400_000L)
         }
         startForegroundService()
         startLocation()
@@ -137,7 +152,7 @@ class TrackingService : Service(), SensorEventListener {
         } catch (_: SecurityException) {
             stopSelf()
         }
-        // Filet de sécurité : envoi périodique même sans nouveau fix GPS
+        // Filet de sécurité : cycle périodique même sans nouveau fix GPS
         sendJob = scope.launch {
             while (true) {
                 kotlinx.coroutines.delay(intervalMs)
@@ -148,50 +163,81 @@ class TrackingService : Service(), SensorEventListener {
 
     private var lastSentAt = 0L
 
-    @Synchronized
     private fun maybeSend(force: Boolean = false) {
         val loc = lastLoc ?: return
         val now = System.currentTimeMillis()
         val minGap = (session.intervalSec.coerceIn(2, 120) * 1000).toLong() - 500
         if (!force && now - lastSentAt < minGap) return
         lastSentAt = now
-        scope.launch {
+        scope.launch { sendCycle(buildPoint(loc)) }
+    }
+
+    private fun buildPoint(loc: Location): Map<String, Any> {
+        val ts = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }.format(Date())
+        val speedKmh = if (loc.hasSpeed()) loc.speed * 3.6 else 0.0
+        val heading = if (loc.hasBearing()) loc.bearing.toDouble() else lastHeading(loc)
+        return mapOf(
+            "vehicle_id" to session.carId,
+            "serial" to session.serial,
+            "timestamp" to ts,
+            "lat" to loc.latitude,
+            "lon" to loc.longitude,
+            "speed" to Math.round(speedKmh * 10) / 10.0,
+            "heading" to Math.round(heading * 10) / 10.0,
+            "nom" to session.nom,
+            "prenom" to session.prenom,
+            "age" to session.age,
+            "marque" to session.marque,
+            "modele" to session.modele,
+            "immatriculation" to session.immat,
+            "ax" to ax, "ay" to ay, "az" to az,
+            "gx" to gx, "gy" to gy, "gz" to gz
+        )
+    }
+
+    /** 1) renvoie la file d'attente (par lots de 50), 2) envoie le point courant. */
+    private suspend fun sendCycle(point: Map<String, Any>) {
+        sendMutex.withLock {
+            val dao = PendingDb.get(this).dao()
+            // 1. Vider la file d'abord (ordre chronologique conservé)
+            var flushed = 0
+            while (true) {
+                val batch = dao.first(50)
+                if (batch.isEmpty()) break
+                try {
+                    val cars = batch.map { gson.fromJson(it.json, Map::class.java) as Map<String, Any> }
+                    val res = ApiClient.service().track(mapOf("cars" to cars))
+                    if (!res.ok) break
+                    dao.remove(batch.map { it.id })
+                    flushed += batch.size
+                } catch (_: Exception) {
+                    break // toujours pas de réseau : on garde tout
+                }
+            }
+            // 2. Point courant
             try {
-                val ts = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-                    timeZone = TimeZone.getTimeZone("UTC")
-                }.format(Date())
-                val speedKmh = if (loc.hasSpeed()) loc.speed * 3.6 else 0.0
-                val heading = if (loc.hasBearing()) loc.bearing.toDouble() else lastHeading(loc)
-                val body = mapOf<String, Any>(
-                    "vehicle_id" to session.carId,
-                    "serial" to session.serial,
-                    "timestamp" to ts,
-                    "lat" to loc.latitude,
-                    "lon" to loc.longitude,
-                    "speed" to Math.round(speedKmh * 10) / 10.0,
-                    "heading" to Math.round(heading * 10) / 10.0,
-                    "nom" to session.nom,
-                    "prenom" to session.prenom,
-                    "age" to session.age,
-                    "marque" to session.marque,
-                    "modele" to session.modele,
-                    "immatriculation" to session.immat,
-                    "ax" to ax, "ay" to ay, "az" to az,
-                    "gx" to gx, "gy" to gy, "gz" to gz
-                )
-                val res = ApiClient.service().track(mapOf("cars" to listOf(body)))
-                lastSend = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                lastCode = if (res.ok) "200 (${res.inserted})" else "ERR"
-                if (res.ok) sent++
-                State.lastSend = lastSend
-                State.lastCode = lastCode
-                State.sent = sent
-                State.online = true
-            } catch (e: Exception) {
+                val res = ApiClient.service().track(mapOf("cars" to listOf(point)))
+                if (res.ok) {
+                    sent++
+                    lastSend = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                    lastCode = "200"
+                    State.online = true
+                } else {
+                    dao.add(PendingPoint(json = gson.toJson(point)))
+                    lastCode = "ERR serveur"
+                    State.online = false
+                }
+            } catch (_: Exception) {
+                dao.add(PendingPoint(json = gson.toJson(point)))
                 lastCode = "ERR réseau"
-                State.lastCode = lastCode
                 State.online = false
             }
+            State.lastSend = lastSend
+            State.lastCode = lastCode
+            State.sent = sent
+            State.pending = dao.count()
         }
     }
 
@@ -230,5 +276,6 @@ object State {
     @Volatile var lastSend: String = "—"
     @Volatile var lastCode: String = "—"
     @Volatile var sent: Int = 0
+    @Volatile var pending: Int = 0
     @Volatile var online: Boolean = false
 }

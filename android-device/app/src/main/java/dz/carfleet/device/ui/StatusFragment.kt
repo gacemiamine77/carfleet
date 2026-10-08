@@ -91,6 +91,9 @@ class StatusFragment : Fragment() {
                     tvSens.text = "Acc: %.1f, %.1f, %.1f\nGyro: %.2f, %.2f, %.2f".format(State.ax, State.ay, State.az, State.gx, State.gy, State.gz)
                     tvSend.text = "Dernier envoi : ${State.lastSend} (${State.lastCode}) — ${State.sent} envoyés"
                     tvConn.text = if (State.online) "🟢 En ligne" else "⚪ En attente / hors-ligne"
+                    view.findViewById<TextView>(R.id.tvPending).text =
+                        if (State.pending > 0) "⏳ File d'attente : ${State.pending} point(s) — renvoi auto à la reconnexion"
+                        else "File d'attente : vide"
                     delay(1000)
                 }
             }

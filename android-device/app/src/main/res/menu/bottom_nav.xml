@@ -2,5 +2,7 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@+id/nav_account" android:title="Compte" />
     <item android:id="@+id/nav_vehicle" android:title="Véhicule" />
+    <item android:id="@+id/nav_driver" android:title="Chauffeur" />
+    <item android:id="@+id/nav_map" android:title="Carte" />
     <item android:id="@+id/nav_status" android:title="Statut" />
 </menu>

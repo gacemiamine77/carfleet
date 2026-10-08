@@ -4,8 +4,10 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.Spinner
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -31,7 +33,11 @@ class AccountFragment : Fragment() {
         val etPrenom: EditText = view.findViewById(R.id.etPrenom)
         val etAge: EditText = view.findViewById(R.id.etAge)
         val etTel: EditText = view.findViewById(R.id.etTel)
+        val spWilaya: Spinner = view.findViewById(R.id.spWilaya)
         val tvInfo: TextView = view.findViewById(R.id.tvInfo)
+        spWilaya.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, Ref.WILAYAS).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
         val tvErr: TextView = view.findViewById(R.id.tvErr)
         etUrl.setText(session.baseUrl)
         if (session.isLogged) {
@@ -50,8 +56,9 @@ class AccountFragment : Fragment() {
             ApiClient.init(base)
             lifecycleScope.launch {
                 try {
+                    val wil = Ref.WILAYAS[spWilaya.selectedItemPosition]
                     val res = ApiClient.service().register(
-                        RegisterRequest(etUser.text.toString().trim(), etPass.text.toString(), "physique", nom, prenom, age, etTel.text.toString().trim())
+                        RegisterRequest(etUser.text.toString().trim(), etPass.text.toString(), "physique", nom, prenom, age, etTel.text.toString().trim(), wil.substringAfter("- "), wil.substring(0, 2))
                     )
                     if (res.ok && res.token != null) {
                         session.saveAccount(base, res.token, etUser.text.toString().trim(), nom, prenom, age)

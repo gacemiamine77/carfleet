@@ -11,6 +11,7 @@ import dz.carfleet.device.data.SessionManager
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        org.osmdroid.config.Configuration.getInstance().load(this, getSharedPreferences("osmdroid", MODE_PRIVATE))
         setContentView(R.layout.activity_main)
         val session = SessionManager(this)
         ApiClient.init(session.baseUrl)
@@ -19,6 +20,8 @@ class MainActivity : AppCompatActivity() {
             val f: Fragment = when (item.itemId) {
                 R.id.nav_account -> AccountFragment()
                 R.id.nav_vehicle -> VehicleFragment()
+                R.id.nav_driver -> DriverFragment()
+                R.id.nav_map -> DeviceMapFragment()
                 R.id.nav_status -> StatusFragment()
                 else -> StatusFragment()
             }

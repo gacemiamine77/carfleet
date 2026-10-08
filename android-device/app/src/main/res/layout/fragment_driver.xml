@@ -12,76 +12,53 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🚗"
-            android:textSize="44sp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Compte propriétaire"
+            android:text="Chauffeur désigné"
             android:textSize="20sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/tvInfo"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp" />
+            android:layout_marginTop="4dp"
+            android:text="Véhicule" />
 
-        <EditText
-            android:id="@+id/etUrl"
+        <Spinner
+            android:id="@+id/spVeh"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="URL plateforme"
-            android:inputType="textUri" />
-
-        <EditText
-            android:id="@+id/etUser"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Nom d'utilisateur"
-            android:inputType="text" />
-
-        <EditText
-            android:id="@+id/etPass"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Mot de passe (6+)"
-            android:inputType="textPassword" />
+            android:layout_height="wrap_content" />
 
         <EditText
             android:id="@+id/etNom"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Nom (inscription)"
+            android:hint="Nom"
             android:inputType="textPersonName" />
 
         <EditText
             android:id="@+id/etPrenom"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Prénom (inscription)"
+            android:hint="Prénom"
             android:inputType="textPersonName" />
-
-        <EditText
-            android:id="@+id/etAge"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Âge (inscription)"
-            android:inputType="number" />
 
         <EditText
             android:id="@+id/etTel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Téléphone (inscription)"
+            android:hint="Téléphone"
             android:inputType="phone" />
+
+        <EditText
+            android:id="@+id/etPermis"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="N° permis (optionnel)" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Wilaya (inscription)" />
+            android:text="Wilaya" />
 
         <Spinner
             android:id="@+id/spWilaya"
@@ -89,17 +66,11 @@
             android:layout_height="wrap_content" />
 
         <Button
-            android:id="@+id/btnRegister"
+            android:id="@+id/btnAdd"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="S'inscrire" />
-
-        <Button
-            android:id="@+id/btnLogin"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Se connecter" />
+            android:text="Désigner ce chauffeur" />
 
         <TextView
             android:id="@+id/tvErr"

@@ -16,23 +16,43 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
-        <EditText
-            android:id="@+id/etMarque"
-            android:layout_width="match_parent"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:hint="Marque (ex. Renault)" />
+            android:text="Marque" />
 
-        <EditText
-            android:id="@+id/etModele"
+        <Spinner
+            android:id="@+id/spMarque"
             android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:hint="Modèle (ex. Symbol)" />
+            android:layout_marginTop="4dp"
+            android:text="Modèle" />
+
+        <Spinner
+            android:id="@+id/spModele"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
 
         <EditText
             android:id="@+id/etImmat"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Matricule (ex. 12345-678-16)" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Couleur" />
+
+        <Spinner
+            android:id="@+id/spCouleur"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
 
         <Spinner
             android:id="@+id/spCat"

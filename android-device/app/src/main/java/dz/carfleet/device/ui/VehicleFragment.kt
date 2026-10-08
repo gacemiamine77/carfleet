@@ -22,7 +22,7 @@ import dz.carfleet.device.data.SessionManager
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-// Véhicule : ajout (marque, modèle, matricule) + n° de série virtuel du dispositif
+// Véhicule : listes fermées marque → modèle → couleur (zéro saisie libre) + n° série virtuel
 class VehicleFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return inflater.inflate(R.layout.fragment_vehicle, container, false)
@@ -30,12 +30,30 @@ class VehicleFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val session = SessionManager(requireContext())
-        val etMarque: EditText = view.findViewById(R.id.etMarque)
-        val etModele: EditText = view.findViewById(R.id.etModele)
+        val spMarque: Spinner = view.findViewById(R.id.spMarque)
+        val spModele: Spinner = view.findViewById(R.id.spModele)
+        val spCouleur: Spinner = view.findViewById(R.id.spCouleur)
         val etImmat: EditText = view.findViewById(R.id.etImmat)
         val spCat: Spinner = view.findViewById(R.id.spCat)
         val tvSerial: TextView = view.findViewById(R.id.tvSerial)
         val tvErr: TextView = view.findViewById(R.id.tvErr)
+
+        val marques = Ref.MARQUES.keys.toList()
+        spMarque.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, marques).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        fun refreshModeles() {
+            val modeles = Ref.MARQUES[marques[spMarque.selectedItemPosition]] ?: emptyList<String>()
+            spModele.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, modeles).apply {
+                setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+        }
+        refreshModeles()
+        spMarque.onItemSelectedListener = posListener { refreshModeles() }
+        spCouleur.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, Ref.COULEURS).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+
         val cats = listOf("leger", "lourd", "transport", "transport_dangereux", "convoi_exceptionnel")
         spCat.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, cats).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -48,11 +66,12 @@ class VehicleFragment : Fragment() {
                 tvErr.text = "Crée d'abord ton compte (onglet Compte)"
                 return@setOnClickListener
             }
-            val marque = etMarque.text.toString().trim()
-            val modele = etModele.text.toString().trim()
+            val marque = marques[spMarque.selectedItemPosition]
+            val modele = (Ref.MARQUES[marque] ?: emptyList()).getOrNull(spModele.selectedItemPosition) ?: ""
+            val couleur = Ref.COULEURS[spCouleur.selectedItemPosition]
             val immat = etImmat.text.toString().trim()
-            if (marque.isEmpty() || modele.isEmpty() || immat.isEmpty()) {
-                tvErr.text = "Marque, modèle et matricule requis"
+            if (modele.isEmpty() || immat.isEmpty()) {
+                tvErr.text = "Modèle et matricule requis"
                 return@setOnClickListener
             }
             // N° de série virtuel généré sur le téléphone (dispositif GPS simulé)
@@ -63,7 +82,7 @@ class VehicleFragment : Fragment() {
                 try {
                     val res = ApiClient.service().addVehicle(
                         session.authHeader,
-                        AddVehicleRequest(immat, marque, modele, cats[spCat.selectedItemPosition], serial)
+                        AddVehicleRequest(immat, marque, modele, couleur, cats[spCat.selectedItemPosition], serial)
                     )
                     if (res.ok && res.vehicule != null) {
                         session.saveVehicle(res.vehicule, marque, modele, immat)
@@ -83,5 +102,14 @@ class VehicleFragment : Fragment() {
             cm.setPrimaryClip(ClipData.newPlainText("serial", session.serial))
             Toast.makeText(context, "N° de série copié", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun posListener(onPos: () -> Unit) = object : android.widget.AdapterView.OnItemSelectedListener {
+        private var first = true
+        override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) {
+            if (first) { first = false; return }
+            onPos()
+        }
+        override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
     }
 }

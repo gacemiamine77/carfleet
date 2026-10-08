@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 // POST - receive external tracking data (GPS devices, other computer)
 // Body: { carId|vehicle_id, lat, lon, speed?, heading?, fuel?, recordedAt|timestamp?, sessionId? } ou { cars: [...] }
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   try {
     const body = await req.json();
     const cars = Array.isArray(body.cars) ? body.cars : [body];
@@ -31,6 +32,9 @@ export async function POST(req: NextRequest) {
     }
 
     let inserted = 0;
+    // Batch : 1 seul INSERT multi-lignes pour footprints + 1 upsert groupé pour le temps réel
+    const fpRows: any[] = [];
+    const liveRows: any[] = [];
   const clamp = (lat:number, lon:number) => ({
     lat: Math.max(32.5, Math.min(37.5, lat)),
     lon: Math.max(-2.5, Math.min(9.0, lon)),
@@ -158,7 +162,7 @@ export async function POST(req: NextRequest) {
       if ([ax, ay, az].every(Number.isFinite)) {
         accelKmhS = Math.round(Math.abs(Math.sqrt(ax * ax + ay * ay + az * az) - 9.81) * 3.6 * 10) / 10;
       }
-      await db.insert(footprints).values({
+      fpRows.push({
         itineraireId: itinId,
         voitureId,
         latitude: lat, longitude: lon, altitude: 0,
@@ -170,24 +174,12 @@ export async function POST(req: NextRequest) {
         recordedAt: recAt,
         deltaSecondes: 2, statut: "en route", estInterruption: false,
       });
-      inserted++;
-      // Temps réel : 1 ligne/véhicule (lue par carte opérateur + apps, jamais footprints en direct)
-      try {
-        await db.insert(vehicleCurrentPosition).values({
-          voitureId, carId, latitude: lat, longitude: lon,
-          vitesse: Number(c.speed ?? 30), cap: Number(c.heading ?? 0),
-          carburant: Number.isFinite(fuel as number) ? (fuel as number) : null,
-          itineraireId: itinId, recordedAt: recAt, updatedAt: new Date(),
-        }).onConflictDoUpdate({
-          target: vehicleCurrentPosition.voitureId,
-          set: {
-            latitude: lat, longitude: lon,
-            vitesse: Number(c.speed ?? 30), cap: Number(c.heading ?? 0),
-            carburant: Number.isFinite(fuel as number) ? (fuel as number) : null,
-            itineraireId: itinId, recordedAt: recAt, updatedAt: new Date(),
-          },
-        });
-      } catch {}
+      liveRows.push({
+        voitureId, carId, latitude: lat, longitude: lon,
+        vitesse: Number(c.speed ?? 30), cap: Number(c.heading ?? 0),
+        carburant: Number.isFinite(fuel as number) ? (fuel as number) : null,
+        itineraireId: itinId, recordedAt: recAt, updatedAt: new Date(),
+      });
       try {
         const { getSimulation } = await import("@/lib/simulationManager");
         const sim = getSimulation();
@@ -253,7 +245,33 @@ export async function POST(req: NextRequest) {
       } catch {}
     }
 
-    const res = NextResponse.json({ ok: true, inserted, sessionId });
+    // Batch : 2 requêtes quelle que soit la taille du lot (au lieu de 2×N)
+    try {
+      if (fpRows.length) {
+        await db.insert(footprints).values(fpRows);
+        inserted = fpRows.length;
+      }
+      if (liveRows.length) {
+        await db.insert(vehicleCurrentPosition).values(liveRows).onConflictDoUpdate({
+          target: vehicleCurrentPosition.voitureId,
+          set: {
+            latitude: sql`excluded."latitude"`,
+            longitude: sql`excluded."longitude"`,
+            vitesse: sql`excluded."vitesse"`,
+            cap: sql`excluded."cap"`,
+            carburant: sql`excluded."carburant"`,
+            itineraireId: sql`excluded."itineraire_id"`,
+            recordedAt: sql`excluded."recorded_at"`,
+            updatedAt: sql`excluded."updated_at"`,
+          } as any,
+        });
+      }
+    } catch (e) {
+      console.error("external track batch fail", e);
+    }
+    const { recordIngest } = await import("@/lib/metrics");
+    recordIngest(inserted, Date.now() - t0);
+    const res = NextResponse.json({ ok: true, inserted, sessionId, ingestMs: Date.now() - t0 });
     res.headers.set("Access-Control-Allow-Origin", "*");
     return res;
   } catch (e: any) {
