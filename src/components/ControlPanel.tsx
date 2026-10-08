@@ -110,38 +110,6 @@ export default function ControlPanel({
         <p className="text-[9px] text-gray-400 mt-1">Si rien n&apos;est coché, toutes les wilayas du nord sont utilisées.</p>
       </div>
 
-      {/* Vehicle Categories */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          🚛 Types de véhicules :
-        </label>
-        <div className="grid grid-cols-2 gap-1 border rounded-lg p-2 bg-gray-50 text-[10px]">
-          {[
-            { id: "leger", label: "Léger" },
-            { id: "lourd", label: "Lourd" },
-            { id: "transport", label: "Transport" },
-            { id: "transport_dangereux", label: "Dangereux" },
-            { id: "convoi_exceptionnel", label: "Convoi Exc." },
-            { id: "transport_personnel", label: "Personnel" },
-          ].map((cat) => (
-            <label key={cat.id} className="flex items-center gap-1 hover:bg-white p-0.5 rounded cursor-pointer">
-              <input
-                type="checkbox"
-                checked={!localConfig.vehicleCategories || localConfig.vehicleCategories.includes(cat.id)}
-                onChange={(e) => {
-                  const current = localConfig.vehicleCategories || ["leger","lourd","transport","transport_dangereux","convoi_exceptionnel","transport_personnel"];
-                  const next = e.target.checked ? [...current, cat.id] : current.filter(c => c !== cat.id);
-                  const nc = { ...localConfig, vehicleCategories: next.length ? next : ["leger"] };
-                  setLocalConfig(nc); onConfigChange(nc);
-                }}
-                disabled={running}
-              />
-              <span className="truncate">{cat.label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
       {/* Source des données : aléatoire ou vrais inscrits */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
