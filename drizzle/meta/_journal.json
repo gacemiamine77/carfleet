@@ -29,6 +29,13 @@
       "when": 1791208914575,
       "tag": "0003_interception-assign",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791382113843,
+      "tag": "0004_device-serial",
+      "breakpoints": true
     }
   ]
 }

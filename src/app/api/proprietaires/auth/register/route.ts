@@ -19,9 +19,18 @@ export async function POST(req: NextRequest) {
 
     const type = b.type === "morale" ? "morale" : "physique";
     const nin = String(b.nin || `PROP-${Date.now()}`).slice(0, 20);
+    // L'app dispositif envoie l'âge → converti en date de naissance (1er janvier)
+    let dateNaissance: Date | null = null;
+    if (b.dateNaissance) {
+      const d = new Date(b.dateNaissance);
+      if (!isNaN(d.getTime())) dateNaissance = d;
+    } else if (b.age != null && Number.isFinite(Number(b.age))) {
+      dateNaissance = new Date(new Date().getFullYear() - Math.max(16, Math.min(100, Number(b.age))), 0, 1);
+    }
     const [prop] = await db.insert(proprietaires).values({
       nin, type: type as any,
       nom: b.nom?.slice(0, 100) || null, prenom: b.prenom?.slice(0, 100) || null,
+      dateNaissance: dateNaissance as any,
       raisonSociale: b.raisonSociale?.slice(0, 200) || null,
       telephone: String(b.telephone).slice(0, 32),
       adresse: b.adresse?.slice(0, 500) || null, commune: b.commune?.slice(0, 100) || null,

@@ -36,7 +36,17 @@ export async function POST(req: NextRequest) {
     lon: Math.max(-2.5, Math.min(9.0, lon)),
   });
   for (const c of cars) {
-    const carId = String(c.carId || c.vehicle_id || `EXT-${Math.random().toString(36).slice(2,6)}`);
+    // Dispositif enregistré : le n° de série virtuel retrouve le véhicule du registre
+    // (marque/modèle/immat du registre utilisés tels quels).
+    let serialVoiture: any = null;
+    const serialIn = typeof c.serial === "string" && c.serial.trim() ? c.serial.trim().slice(0, 40) : "";
+    if (serialIn) {
+      try {
+        const found = await db.select().from(voitures).where(eq(voitures.numeroSerie, serialIn)).limit(1);
+        if (found.length) serialVoiture = found[0];
+      } catch {}
+    }
+    const carId = serialVoiture ? serialVoiture.carId : String(c.carId || c.vehicle_id || `EXT-${Math.random().toString(36).slice(2,6)}`);
     let lat = Number(c.lat), lon = Number(c.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
     // Aliases payload GPS : fuel (% réservoir), recordedAt/timestamp
@@ -56,7 +66,7 @@ export async function POST(req: NextRequest) {
           extDestName = (c.destName || c.villeArrivee || "")?.toString().slice(0,100);
     const extVilleDep = extOriginName || "Externe", extVilleArr = extDestName || "Externe";
 
-      let voiture = await db.select().from(voitures).where(eq(voitures.carId, carId)).limit(1);
+      let voiture = serialVoiture ? [serialVoiture] : await db.select().from(voitures).where(eq(voitures.carId, carId)).limit(1);
       let voitureId: number;
       if (!voiture.length) {
         const nin = `EXT-${carId}-${Date.now()}`.slice(0,20);
@@ -142,13 +152,19 @@ export async function POST(req: NextRequest) {
         } else console.error("no condId for", carId);
       }
       if (!itinId) { console.error("no itinId for", carId, "voitureId", voitureId); continue; }
+      // Accéléromètre du dispositif (m/s²) → km/h/s ; gyro conservé tel quel (ignoré en base)
+      let accelKmhS = 0;
+      const ax = Number(c.ax), ay = Number(c.ay), az = Number(c.az);
+      if ([ax, ay, az].every(Number.isFinite)) {
+        accelKmhS = Math.round(Math.abs(Math.sqrt(ax * ax + ay * ay + az * az) - 9.81) * 3.6 * 10) / 10;
+      }
       await db.insert(footprints).values({
         itineraireId: itinId,
         voitureId,
         latitude: lat, longitude: lon, altitude: 0,
         geog: { lon, lat } as any,
         vitesse: Number(c.speed ?? 30 + Math.random()*40),
-        acceleration: 0, cap: Number(c.heading ?? Math.random()*360),
+        acceleration: accelKmhS, cap: Number(c.heading ?? Math.random()*360),
         carburant: Number.isFinite(fuel as number) ? (fuel as number) : null,
         distanceCumulee: 0,
         recordedAt: recAt,

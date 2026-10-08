@@ -47,7 +47,18 @@ export async function POST(req: NextRequest) {
     const ex = await db.select({ id: voitures.id }).from(voitures).where(eq(voitures.immatriculation, String(b.immatriculation))).limit(1);
     if (ex.length) return NextResponse.json({ error: "Immatriculation déjà enregistrée" }, { status: 409 });
     const count = await db.select().from(voitures).where(eq(voitures.proprietaireId, auth.proprietaire.id));
+    // N° de série virtuel du dispositif : fourni par l'app ou généré ici (unique)
+    let serial = typeof b.numeroSerie === "string" && b.numeroSerie.trim() ? b.numeroSerie.trim().slice(0, 40) : "";
+    if (!serial) {
+      serial = `VSN-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      const clash = await db.select({ id: voitures.id }).from(voitures).where(eq(voitures.numeroSerie, serial)).limit(1);
+      if (clash.length) serial += Math.random().toString(36).slice(2, 4).toUpperCase();
+    } else {
+      const clash = await db.select({ id: voitures.id }).from(voitures).where(eq(voitures.numeroSerie, serial)).limit(1);
+      if (clash.length) return NextResponse.json({ error: "Numéro de série déjà utilisé" }, { status: 409 });
+    }
     const [v] = await db.insert(voitures).values({
+      numeroSerie: serial,
       carId: `PROP-${auth.proprietaire.id}-${count.length + 1}-${Date.now().toString(36).toUpperCase()}`.slice(0, 64),
       proprietaireId: auth.proprietaire.id,
       immatriculation: String(b.immatriculation).slice(0, 20),
@@ -57,7 +68,7 @@ export async function POST(req: NextRequest) {
       hauteur: b.hauteur ? Number(b.hauteur) : null, largeur: b.largeur ? Number(b.largeur) : null,
       poids: b.poids ? Number(b.poids) : null, convoiSpecial: !!b.convoiSpecial,
     } as any).returning();
-    const res = NextResponse.json({ ok: true, vehicule: { id: v.id, carId: v.carId, immatriculation: v.immatriculation } });
+    const res = NextResponse.json({ ok: true, vehicule: { id: v.id, carId: v.carId, immatriculation: v.immatriculation, numeroSerie: (v as any).numeroSerie } });
     res.headers.set("Access-Control-Allow-Origin", "*");
     return res;
   } catch (e: any) {

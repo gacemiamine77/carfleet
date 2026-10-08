@@ -64,6 +64,8 @@ export const voitures = pgTable("voitures", {
   
   // Infos véhicule
   immatriculation: varchar("immatriculation", { length: 20 }).notNull().unique(),
+  // N° de série virtuel du dispositif GPS (généré par l'app dispositif, unique)
+  numeroSerie: varchar("numero_serie", { length: 40 }).unique(),
   marque: varchar("marque", { length: 50 }),
   modele: varchar("modele", { length: 50 }),
   couleur: varchar("couleur", { length: 30 }),
