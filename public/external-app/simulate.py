@@ -15,9 +15,13 @@ base = args.url.rstrip("/")
 endpoint = f"{base}/api/external/track"
 print(f"Envoi vers {endpoint} toutes les {args.interval}s — Ctrl+C pour arrêter")
 
-# 5 voitures autour du nord Algérie
+# 5 voitures autour du nord Algérie (identité complète requise : immat + noms)
+MARQUES = [("Renault", "Symbol"), ("Peugeot", "301"), ("Hyundai", "Accent"), ("Toyota", "Yaris"), ("Dacia", "Logan")]
 cars = [
-    {"carId": f"EXT-{i+1}", "lat": 36.75 + random.uniform(-1.5, 1.5), "lon": 3.04 + random.uniform(-2.5, 2.5), "heading": random.uniform(0,360)}
+    {"carId": f"EXT-{i+1}", "lat": 36.75 + random.uniform(-1.5, 1.5), "lon": 3.04 + random.uniform(-2.5, 2.5), "heading": random.uniform(0,360),
+     "marque": MARQUES[i % len(MARQUES)][0], "modele": MARQUES[i % len(MARQUES)][1],
+     "immatriculation": f"{10000+i*137}-{100+i}-16",
+     "proprietaireNom": f"PropDemo{i+1}", "conducteurNom": f"CondDemo{i+1}"}
     for i in range(5)
 ]
 
@@ -39,7 +43,9 @@ try:
             # clamp Nord Algérie
             c["lat"] = max(32.5, min(37.5, c["lat"]))
             c["lon"] = max(-2.5, min(9.0, c["lon"]))
-            payload_cars.append({"carId": c["carId"], "lat": round(c["lat"],5), "lon": round(c["lon"],5), "speed": round(speed,1), "heading": round(heading,1)})
+            payload_cars.append({"carId": c["carId"], "lat": round(c["lat"],5), "lon": round(c["lon"],5), "speed": round(speed,1), "heading": round(heading,1),
+                "marque": c["marque"], "modele": c["modele"], "immatriculation": c["immatriculation"],
+                "proprietaireNom": c["proprietaireNom"], "conducteurNom": c["conducteurNom"]})
 
         try:
             r = requests.post(endpoint, json={"cars": payload_cars, "sessionId": session}, timeout=5)

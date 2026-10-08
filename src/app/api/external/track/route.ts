@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
     }
 
     let inserted = 0;
+    let rejected = 0;
     // Batch : 1 seul INSERT multi-lignes pour footprints + 1 upsert groupé pour le temps réel
     const fpRows: any[] = [];
     const liveRows: any[] = [];
@@ -68,6 +69,11 @@ export async function POST(req: NextRequest) {
           extCondNom = c.conducteurNom, extCondPrenom = c.conducteurPrenom, extCondTel = c.conducteurTel, extCondPermis = c.conducteurPermis,
           extOriginName = (c.originName || c.villeDepart || "")?.toString().slice(0,100),
           extDestName = (c.destName || c.villeArrivee || "")?.toString().slice(0,100);
+    // Champs OBLIGATOIRES pour tracker : matricule + nom chauffeur + nom propriétaire
+    if (!String(extImmat || "").trim() || !String(extCondNom || "").trim() || !String(extPropNom || "").trim()) {
+      rejected++;
+      continue;
+    }
     const extVilleDep = extOriginName || "Externe", extVilleArr = extDestName || "Externe";
 
       let voiture = serialVoiture ? [serialVoiture] : await db.select().from(voitures).where(eq(voitures.carId, carId)).limit(1);
@@ -271,7 +277,7 @@ export async function POST(req: NextRequest) {
     }
     const { recordIngest } = await import("@/lib/metrics");
     recordIngest(inserted, Date.now() - t0);
-    const res = NextResponse.json({ ok: true, inserted, sessionId, ingestMs: Date.now() - t0 });
+    const res = NextResponse.json({ ok: true, inserted, rejected, sessionId, ingestMs: Date.now() - t0 });
     res.headers.set("Access-Control-Allow-Origin", "*");
     return res;
   } catch (e: any) {

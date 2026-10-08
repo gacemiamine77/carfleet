@@ -20,7 +20,10 @@ async function tick(){
     c.lon += Math.sin(c.heading*Math.PI/180)*distDeg*0.7 / Math.max(0.5, Math.abs(Math.cos(c.lat*Math.PI/180)));
     c.lat = Math.max(32.5, Math.min(37.5, c.lat));
     c.lon = Math.max(-2.5, Math.min(9.0, c.lon));
-    return {carId:c.carId, lat:+c.lat.toFixed(5), lon:+c.lon.toFixed(5), speed:+speed.toFixed(1), heading:Math.round(c.heading)};
+    const idx = cars.indexOf(c);
+    return {carId:c.carId, lat:+c.lat.toFixed(5), lon:+c.lon.toFixed(5), speed:+speed.toFixed(1), heading:Math.round(c.heading),
+      marque:"Renault", modele:"Symbol", immatriculation:`${10000+idx*137}-${100+idx}-16`,
+      proprietaireNom:`PropDemo${idx+1}`, conducteurNom:`CondDemo${idx+1}`};
   });
   try{
     const r = await fetch(endpoint,{method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({cars:payload, sessionId:session})});
