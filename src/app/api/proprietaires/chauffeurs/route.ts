@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { voitures, conducteurs, affectations } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { getAuthProprio } from "@/lib/auth-proprio";
 
 // POST /api/proprietaires/chauffeurs {voitureId, nom, prenom, telephone, numeroPermis?, commune?, wilaya?}
@@ -46,5 +46,45 @@ export async function POST(req: NextRequest) {
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST,OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" } });
+  return new NextResponse(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST,PATCH,OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" } });
+}
+
+// PATCH /api/proprietaires/chauffeurs {nom?, prenom?, telephone?, numeroPermis?, commune?, wilaya?}
+// Modifie le chauffeur désigné (le seul autorisé) sans en créer un nouveau.
+export async function PATCH(req: NextRequest) {
+  const auth = await getAuthProprio(req);
+  if (!auth) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  try {
+    const b = await req.json();
+    const vs = await db.select().from(voitures).where(eq(voitures.proprietaireId, auth.proprietaire.id)).limit(1);
+    if (!vs.length) return NextResponse.json({ error: "Aucun véhicule" }, { status: 404 });
+    const aff = await db.select().from(affectations)
+      .where(and(eq(affectations.voitureId, vs[0].id), eq(affectations.actif, true as any)))
+      .orderBy(desc(affectations.id)).limit(1);
+    if (!aff.length) return NextResponse.json({ error: "Aucun chauffeur désigné" }, { status: 404 });
+    const patch: any = {};
+    for (const k of ["nom", "prenom"]) {
+      if (b[k] !== undefined) {
+        if (!String(b[k]).trim()) return NextResponse.json({ error: k + " requis" }, { status: 400 });
+        patch[k] = String(b[k]).slice(0, 100);
+      }
+    }
+    if (b.telephone !== undefined) {
+      if (!String(b.telephone).trim()) return NextResponse.json({ error: "telephone requis" }, { status: 400 });
+      patch.telephone = String(b.telephone).slice(0, 32);
+    }
+    for (const k of ["numeroPermis"]) {
+      if (b[k] !== undefined) patch[k] = String(b[k]).slice(0, 30) || null;
+    }
+    for (const k of ["commune", "wilaya"]) {
+      if (b[k] !== undefined) patch[k] = String(b[k]).slice(0, 100) || null;
+    }
+    if (!Object.keys(patch).length) return NextResponse.json({ error: "rien à changer" }, { status: 400 });
+    await db.update(conducteurs).set(patch).where(eq(conducteurs.id, aff[0].conducteurId));
+    const res = NextResponse.json({ ok: true });
+    res.headers.set("Access-Control-Allow-Origin", "*");
+    return res;
+  } catch (e: any) {
+    return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
+  }
 }

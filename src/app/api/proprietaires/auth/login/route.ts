@@ -20,9 +20,16 @@ export async function POST(req: NextRequest) {
     const { token, expiresAt } = await createSession(rows[0].compte.id);
     const nb = await db.select({ n: sql<number>`count(*)` }).from(voitures).where(eq(voitures.proprietaireId, rows[0].proprio.id));
     const p = rows[0].proprio;
+    let age: number | null = null;
+    if (p.dateNaissance) {
+      const dn = new Date(p.dateNaissance as any), now = new Date();
+      age = now.getFullYear() - dn.getFullYear();
+      const m = now.getMonth() - dn.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < dn.getDate())) age--;
+    }
     const res = NextResponse.json({
       ok: true, token, expiresAt,
-      proprietaire: { id: p.id, type: p.type, nom: p.nom, prenom: p.prenom, raisonSociale: p.raisonSociale, wilaya: p.wilaya, nbVehicules: Number(nb[0]?.n || 0) },
+      proprietaire: { id: p.id, type: p.type, nom: p.nom, prenom: p.prenom, raisonSociale: p.raisonSociale, wilaya: p.wilaya, telephone: p.telephone, age, nbVehicules: Number(nb[0]?.n || 0) },
     });
     res.headers.set("Access-Control-Allow-Origin", "*");
     return res;

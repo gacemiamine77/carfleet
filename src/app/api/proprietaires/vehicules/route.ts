@@ -81,5 +81,41 @@ export async function POST(req: NextRequest) {
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" } });
+  return new NextResponse(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" } });
+}
+
+// PATCH /api/proprietaires/vehicules {id?, marque?, modele?, couleur?, categorieVehicule?, hauteur?, largeur?, poids?, immatriculation?}
+export async function PATCH(req: NextRequest) {
+  const auth = await getAuthProprio(req);
+  if (!auth) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  try {
+    const b = await req.json();
+    const rows = b.id
+      ? await db.select().from(voitures).where(eq(voitures.id, Number(b.id))).limit(1)
+      : await db.select().from(voitures).where(eq(voitures.proprietaireId, auth.proprietaire.id)).limit(1);
+    const v = rows[0];
+    if (!v || v.proprietaireId !== auth.proprietaire.id) {
+      return NextResponse.json({ error: "Véhicule introuvable" }, { status: 404 });
+    }
+    if (b.immatriculation && String(b.immatriculation) !== v.immatriculation) {
+      const clash = await db.select({ id: voitures.id }).from(voitures).where(eq(voitures.immatriculation, String(b.immatriculation).slice(0, 20))).limit(1);
+      if (clash.length && clash[0].id !== v.id) return NextResponse.json({ error: "Immatriculation déjà utilisée" }, { status: 409 });
+    }
+    const patch: any = {};
+    for (const k of ["marque", "modele", "couleur"]) {
+      if (b[k] !== undefined) patch[k] = String(b[k]).slice(0, 50) || null;
+    }
+    if (b.immatriculation !== undefined) patch.immatriculation = String(b.immatriculation).slice(0, 20);
+    if (b.categorieVehicule !== undefined) patch.categorieVehicule = b.categorieVehicule;
+    for (const k of ["hauteur", "largeur", "poids"]) {
+      if (b[k] !== undefined && b[k] !== "") patch[k] = Number(b[k]);
+    }
+    if (!Object.keys(patch).length) return NextResponse.json({ error: "rien à changer" }, { status: 400 });
+    await db.update(voitures).set(patch).where(eq(voitures.id, v.id));
+    const res = NextResponse.json({ ok: true });
+    res.headers.set("Access-Control-Allow-Origin", "*");
+    return res;
+  } catch (e: any) {
+    return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
+  }
 }

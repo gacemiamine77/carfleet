@@ -9,7 +9,7 @@ class SessionManager(ctx: Context) {
     private val prefs = ctx.getSharedPreferences("carfleet_device", Context.MODE_PRIVATE)
     private val gson = Gson()
 
-    fun saveAccount(baseUrl: String, token: String, username: String, nom: String, prenom: String, age: Int) {
+    fun saveAccount(baseUrl: String, token: String, username: String, nom: String, prenom: String, age: Int, telephone: String = "") {
         prefs.edit()
             .putString("baseUrl", baseUrl)
             .putString("token", token)
@@ -17,6 +17,16 @@ class SessionManager(ctx: Context) {
             .putString("nom", nom)
             .putString("prenom", prenom)
             .putInt("age", age)
+            .putString("tel", telephone)
+            .apply()
+    }
+
+    fun updateProfile(nom: String, prenom: String, age: Int, telephone: String) {
+        prefs.edit()
+            .putString("nom", nom)
+            .putString("prenom", prenom)
+            .putInt("age", age)
+            .putString("tel", telephone)
             .apply()
     }
 
@@ -48,6 +58,7 @@ class SessionManager(ctx: Context) {
     val nom: String get() = prefs.getString("nom", "") ?: ""
     val prenom: String get() = prefs.getString("prenom", "") ?: ""
     val age: Int get() = prefs.getInt("age", 0)
+    val tel: String get() = prefs.getString("tel", "") ?: ""
     val carId: String get() = prefs.getString("carId", "") ?: ""
     val serial: String get() = prefs.getString("serial", "") ?: ""
     val marque: String get() = prefs.getString("marque", "") ?: ""

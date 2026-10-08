@@ -3,6 +3,7 @@ package dz.carfleet.device.api
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 
 interface ApiService {
@@ -27,6 +28,24 @@ interface ApiService {
     suspend fun addDriver(
         @Header("Authorization") auth: String,
         @Body body: AddDriverRequest
+    ): Map<String, Any>
+
+    @PATCH("api/proprietaires/profil")
+    suspend fun patchProfil(
+        @Header("Authorization") auth: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any?>
+    ): Map<String, Any>
+
+    @PATCH("api/proprietaires/vehicules")
+    suspend fun patchVehicle(
+        @Header("Authorization") auth: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any?>
+    ): Map<String, Any>
+
+    @PATCH("api/proprietaires/chauffeurs")
+    suspend fun patchDriver(
+        @Header("Authorization") auth: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any?>
     ): Map<String, Any>
 
     @POST("api/external/track")

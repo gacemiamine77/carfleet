@@ -5,6 +5,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -38,6 +40,7 @@ class AccountFragment : Fragment() {
         etUrl.setText(session.baseUrl)
         if (session.isLogged) {
             tvInfo.text = "Connecté : ${session.prenom} ${session.nom} (${session.username})"
+            refreshProfile(view, session)
         }
         view.findViewById<Button>(R.id.btnToRegister).setOnClickListener {
             // Pré-remplit l'URL pour la fiche inscription
@@ -76,8 +79,9 @@ class AccountFragment : Fragment() {
                         RegisterRequest(etUser.text.toString().trim(), etPass.text.toString(), "physique", nom, prenom, age, etTel.text.toString().trim(), wil.substringAfter("- "), wil.substring(0, 2))
                     )
                     if (res.ok && res.token != null) {
-                        session.saveAccount(base, res.token, etUser.text.toString().trim(), nom, prenom, age)
+                        session.saveAccount(base, res.token, etUser.text.toString().trim(), nom, prenom, age, etTel.text.toString().trim())
                         tvInfo.text = "Compte créé et connecté : $prenom $nom"
+                        refreshProfile(view, session)
                         tvErr.text = ""
                         viewRegister.visibility = View.GONE
                         viewLogin.visibility = View.VISIBLE
@@ -101,8 +105,9 @@ class AccountFragment : Fragment() {
                     val res = ApiClient.service().login(LoginRequest(etUser.text.toString().trim(), etPass.text.toString()))
                     if (res.ok && res.token != null) {
                         val p = res.proprietaire
-                        session.saveAccount(base, res.token, etUser.text.toString().trim(), p?.nom ?: "", p?.prenom ?: "", 0)
+                        session.saveAccount(base, res.token, etUser.text.toString().trim(), p?.nom ?: "", p?.prenom ?: "", p?.age ?: 0, p?.telephone ?: "")
                         tvInfo.text = "Connecté"
+                        refreshProfile(view, session)
                         tvErr.text = ""
                         (activity as MainActivity).goStatus()
                     } else {

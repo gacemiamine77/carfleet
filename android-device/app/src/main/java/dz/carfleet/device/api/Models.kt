@@ -17,7 +17,11 @@ data class Proprietaire(
     val type: String? = null,
     val nom: String? = null,
     val prenom: String? = null,
-    val raisonSociale: String? = null
+    val raisonSociale: String? = null,
+    val wilaya: String? = null,
+    val telephone: String? = null,
+    val age: Int? = null,
+    val nbVehicules: Int? = null
 )
 
 data class RegisterResponse(
@@ -51,7 +55,8 @@ data class ChauffeurInfo(
     val id: Int = 0,
     val nom: String? = null,
     val prenom: String? = null,
-    val telephone: String? = null
+    val telephone: String? = null,
+    val numeroPermis: String? = null
 )
 
 data class OwnedVehicle(
@@ -60,6 +65,8 @@ data class OwnedVehicle(
     val immatriculation: String = "",
     val marque: String? = null,
     val modele: String? = null,
+    val couleur: String? = null,
+    val categorieVehicule: String? = null,
     val chauffeur: ChauffeurInfo? = null
 )
 
