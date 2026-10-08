@@ -64,6 +64,16 @@ th{background:#f8fafc}
       <label>Catégorie<select id="r_cat"><option value="leger">Léger</option><option value="lourd">Lourd</option><option value="transport">Transport</option><option value="transport_dangereux">Dangereux</option></select></label>
     </div>
   </div>
+  <div id="regCh" class="hidden">
+    <h3 style="margin:8px 0 4px">🧑‍✈️ Son chauffeur (fiche d'inscription)</h3>
+    <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="r_meme" style="width:auto" onchange="copieChauffeur()"> Je suis aussi le chauffeur</label>
+    <div class="grid2">
+      <label>Nom chauffeur*<input id="r_ch_nom" autocomplete="off"></label>
+      <label>Prénom chauffeur*<input id="r_ch_prenom" autocomplete="off"></label>
+      <label>Tél chauffeur*<input id="r_ch_tel" autocomplete="off"></label>
+      <label>N° permis<input id="r_ch_permis" autocomplete="off"></label>
+    </div>
+  </div>
   <button id="go" onclick="auth()">Se connecter</button>
 </div>
 
@@ -114,7 +124,13 @@ th{background:#f8fafc}
 <script>
 let MODE='login', TOKEN=localStorage.getItem('pp_token')||'', BASE=localStorage.getItem('pp_base')||'';
 function log(m){const b=document.getElementById('log');const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+m;b.prepend(d);}
-function mode(m){MODE=m;document.getElementById('regFields').classList.toggle('hidden',m==='login');document.getElementById('regVeh').classList.toggle('hidden',m==='login');document.getElementById('go').textContent=m==='login'?'Se connecter':"S'inscrire";document.getElementById('tabLogin').classList.toggle('off',m!=='login');document.getElementById('tabReg').classList.toggle('off',m!=='reg');}
+function mode(m){MODE=m;document.getElementById('regFields').classList.toggle('hidden',m==='login');document.getElementById('regVeh').classList.toggle('hidden',m==='login');document.getElementById('regCh').classList.toggle('hidden',m==='login');document.getElementById('go').textContent=m==='login'?'Se connecter':"S'inscrire";document.getElementById('tabLogin').classList.toggle('off',m!=='login');document.getElementById('tabReg').classList.toggle('off',m!=='reg');}
+function copieChauffeur(){
+  if(!document.getElementById('r_meme').checked)return;
+  document.getElementById('r_ch_nom').value=document.getElementById('r_nom').value;
+  document.getElementById('r_ch_prenom').value=document.getElementById('r_prenom').value;
+  document.getElementById('r_ch_tel').value=document.getElementById('r_tel').value;
+}
 function headers(){return {'Content-Type':'application/json',...(TOKEN?{'Authorization':'Bearer '+TOKEN}:{})};}
 async function api(path,body){const r=await fetch(BASE+path,{method:body?'POST':'GET',headers:headers(),body:body?JSON.stringify(body):undefined});const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j;}
 function show(logged){
@@ -136,6 +152,12 @@ async function auth(){
       const vj=await(await fetch(BASE+'/api/proprietaires/vehicules',{method:'POST',headers:hv,body:JSON.stringify({immatriculation:immat,marque:document.getElementById('r_marque').value,modele:document.getElementById('r_modele').value,categorieVehicule:document.getElementById('r_cat').value})})).json();
       if(!vj.ok)throw new Error('Compte créé, mais véhicule refusé : '+vj.error);
       log('OK inscrit + véhicule '+vj.vehicule.immatriculation);
+      if(document.getElementById('r_meme').checked)copieChauffeur();
+      const chNom=document.getElementById('r_ch_nom').value.trim(), chPrenom=document.getElementById('r_ch_prenom').value.trim(), chTel=document.getElementById('r_ch_tel').value.trim();
+      if(!chNom||!chPrenom||!chTel)throw new Error('Compte + véhicule créés, mais chauffeur incomplet (nom, prénom, tél requis)');
+      const cj=await(await fetch(BASE+'/api/proprietaires/chauffeurs',{method:'POST',headers:hv,body:JSON.stringify({voitureId:vj.vehicule.id,nom:chNom,prenom:chPrenom,telephone:chTel,numeroPermis:document.getElementById('r_ch_permis').value||undefined})})).json();
+      if(!cj.ok)throw new Error('Compte + véhicule créés, mais chauffeur refusé : '+cj.error);
+      log('OK chauffeur '+chPrenom+' '+chNom+' désigné');
     } else {
       j=await(await fetch(BASE+'/api/proprietaires/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})})).json();
       if(!j.ok)throw new Error(j.error);

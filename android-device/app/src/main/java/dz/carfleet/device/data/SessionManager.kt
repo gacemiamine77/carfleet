@@ -18,6 +18,8 @@ class SessionManager(ctx: Context) {
             .putString("prenom", prenom)
             .putInt("age", age)
             .putString("tel", telephone)
+            .remove("carId").remove("serial").remove("marque").remove("modele").remove("immat")
+            .remove("interval").remove("tracking")
             .apply()
     }
 

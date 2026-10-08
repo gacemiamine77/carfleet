@@ -63,14 +63,16 @@ export async function POST(req: NextRequest) {
     const cl = clamp(lat, lon);
     lat = cl.lat; lon = cl.lon;
     // Champs enrichis depuis l'app externe (tout ce qu'a la plateforme)
-    const extMarque = c.marque, extModele = c.modele, extCouleur = c.couleur, extImmat = c.immatriculation,
+     // Fallback : l'app device envoie nom/prenom plats, pas proprietaireNom/conducteurNom
+     const extMarque = c.marque, extModele = c.modele, extCouleur = c.couleur, extImmat = c.immatriculation,
           extCat = c.categorieVehicule, extH = c.hauteur, extL = c.largeur, extPoids = c.poids, extConvoi = c.convoiSpecial,
-          extPropNom = c.proprietaireNom, extPropPrenom = c.proprietairePrenom, extPropTel = c.proprietaireTel, extPropWilaya = c.proprietaireWilaya,
-          extCondNom = c.conducteurNom, extCondPrenom = c.conducteurPrenom, extCondTel = c.conducteurTel, extCondPermis = c.conducteurPermis,
+          extPropNom = c.proprietaireNom || c.nom, extPropPrenom = c.proprietairePrenom || c.prenom, extPropTel = c.proprietaireTel || c.telephone,
+          extPropWilaya = c.proprietaireWilaya || c.wilaya,
+          extCondNom = c.conducteurNom || c.nom, extCondPrenom = c.conducteurPrenom || c.prenom, extCondTel = c.conducteurTel || c.telephone, extCondPermis = c.conducteurPermis,
           extOriginName = (c.originName || c.villeDepart || "")?.toString().slice(0,100),
           extDestName = (c.destName || c.villeArrivee || "")?.toString().slice(0,100);
-    // Champs OBLIGATOIRES pour tracker : matricule + nom chauffeur + nom propriétaire
-    if (!String(extImmat || "").trim() || !String(extCondNom || "").trim() || !String(extPropNom || "").trim()) {
+    // Champs OBLIGATOIRES : si véhicule déjà enregistré par serial, on n'exige pas conducteur/proprio (pris en base)
+    if (!String(extImmat || "").trim() || (!serialVoiture && (!String(extCondNom || "").trim() || !String(extPropNom || "").trim()))) {
       rejected++;
       continue;
     }
@@ -145,16 +147,17 @@ export async function POST(req: NextRequest) {
 
       let itinId: number | undefined = (await db.select().from(itineraires).where(eq(itineraires.voitureId, voitureId)).orderBy(sql`${itineraires.id} DESC`).limit(1))[0]?.id;
       if (!itinId) {
-        const condRow = await db.select().from(conducteurs).where(eq(conducteurs.nin, `COND-${carId}`)).limit(1);
+        const condNin = `COND-${carId}`.slice(0, 20);
+        const condRow = await db.select().from(conducteurs).where(eq(conducteurs.nin, condNin)).limit(1);
         let condId = condRow[0]?.id;
         if (!condId) {
           try {
-            const [nc] = await db.insert(conducteurs).values({ nin: `COND-${carId}`, nom: "Externe", prenom: carId, telephone: "+213000000000", numeroPermis: "EXT", commune: "Externe", wilaya: "Externe" } as any).onConflictDoNothing().returning();
-            condId = nc?.id || (await db.select().from(conducteurs).where(eq(conducteurs.nin, `COND-${carId}`)).limit(1))[0]?.id;
+            const [nc] = await db.insert(conducteurs).values({ nin: condNin, nom: "Externe", prenom: carId.slice(0, 20), telephone: "+213000000000", numeroPermis: "EXT", commune: "Externe", wilaya: "Externe" } as any).onConflictDoNothing().returning();
+            condId = nc?.id || (await db.select().from(conducteurs).where(eq(conducteurs.nin, condNin)).limit(1))[0]?.id;
           } catch (e) { console.error("cond insert fail", e); }
         }
         if (condId) {
-          const newItinId = `ext-${carId}-${sessionId}-${Date.now()}`;
+          const newItinId = `ext-${carId}-${sessionId}-${Date.now()}`.slice(0, 64);
           try {
             const [ni] = await db.insert(itineraires).values({ itineraireId: newItinId, voitureId, conducteurId: condId, sessionId, villeDepart: "Externe", villeArrivee: "Externe", debutAt: new Date(), statut: "en_cours" } as any).onConflictDoNothing().returning();
             itinId = ni?.id || (await db.select().from(itineraires).where(eq(itineraires.itineraireId, newItinId)).limit(1))[0]?.id;

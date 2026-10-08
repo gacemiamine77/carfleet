@@ -16,69 +16,135 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Marque" />
-
-        <Spinner
-            android:id="@+id/spMarque"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Modèle" />
-
-        <Spinner
-            android:id="@+id/spModele"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <EditText
-            android:id="@+id/etImmat"
+        <!-- FICHE (si déjà inscrit) : affichage complet + édition -->
+        <LinearLayout
+            android:id="@+id/ficheVeh"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Matricule (ex. 12345-678-16)" />
+            android:orientation="vertical"
+            android:visibility="gone">
 
-        <TextView
-            android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/tvFiche"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textIsSelectable="true" />
+
+            <LinearLayout
+                android:id="@+id/editVeh"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <Spinner
+                    android:id="@+id/spMarque2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <Spinner
+                    android:id="@+id/spModele2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <Spinner
+                    android:id="@+id/spCouleur2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <Spinner
+                    android:id="@+id/spCat2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <EditText
+                    android:id="@+id/etImmat2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Matricule" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnEditVeh"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Modifier" />
+
+            <Button
+                android:id="@+id/btnCopy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Copier le n° de série" />
+        </LinearLayout>
+
+        <!-- FORMULAIRE AJOUT (si aucun véhicule) -->
+        <LinearLayout
+            android:id="@+id/formAjout"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Couleur" />
+            android:orientation="vertical">
 
-        <Spinner
-            android:id="@+id/spCouleur"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Marque" />
 
-        <Spinner
-            android:id="@+id/spCat"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            <Spinner
+                android:id="@+id/spMarque"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
 
-        <Button
-            android:id="@+id/btnAdd"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Enregistrer + générer n° série" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Modèle" />
 
-        <TextView
-            android:id="@+id/tvSerial"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="N° série : —"
-            android:textIsSelectable="true" />
+            <Spinner
+                android:id="@+id/spModele"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
 
-        <Button
-            android:id="@+id/btnCopy"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Copier le n° de série" />
+            <EditText
+                android:id="@+id/etImmat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Matricule (ex. 12345-678-16)" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Couleur" />
+
+            <Spinner
+                android:id="@+id/spCouleur"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <Spinner
+                android:id="@+id/spCat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <Button
+                android:id="@+id/btnAdd"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Enregistrer + générer n° série" />
+
+            <TextView
+                android:id="@+id/tvSerial"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="N° série : —"
+                android:textIsSelectable="true" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tvErr"

@@ -65,8 +65,12 @@ class StatusFragment : Fragment() {
         updateToggle(btnToggle)
 
         btnToggle.setOnClickListener {
-            if (!session.isLogged || !session.hasVehicle) {
-                Toast.makeText(context, "Compte + véhicule requis", Toast.LENGTH_SHORT).show()
+            if (!session.isLogged) {
+                Toast.makeText(context, "Compte requis — va dans l'onglet Compte pour t'inscrire/te connecter", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            if (!session.hasVehicle) {
+                Toast.makeText(context, "Véhicule requis — va dans l'onglet Véhicule pour l'enregistrer", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
             if (!hasAllPerms()) {

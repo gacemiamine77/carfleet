@@ -192,6 +192,13 @@ class TrackingService : Service(), SensorEventListener {
             "marque" to session.marque,
             "modele" to session.modele,
             "immatriculation" to session.immat,
+            // Aliases requis par /api/external/track (rejet si manquant)
+            "proprietaireNom" to session.nom,
+            "proprietairePrenom" to session.prenom,
+            "proprietaireTel" to session.tel,
+            "conducteurNom" to session.nom,
+            "conducteurPrenom" to session.prenom,
+            "conducteurTel" to session.tel,
             "ax" to ax, "ay" to ay, "az" to az,
             "gx" to gx, "gy" to gy, "gz" to gz
         )
