@@ -44,6 +44,12 @@ nav.tabs button span{font-size:20px;display:block}
 .posbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
 .posbar>*{flex:1;min-width:120px}
 #meDot{font-size:12px;color:var(--mut)}
+.btn-mode.on{background:var(--blue);color:#fff}
+#vehTable{width:100%;border-collapse:collapse;font-size:12px}
+#vehTable th,#vehTable td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left}
+#vehTable th{background:#f8fafc;position:sticky;top:0}
+tr.vehrow{cursor:pointer}tr.vehrow:hover{background:#f1f5f9}
+.grave{color:var(--red);font-weight:700}.moyen{color:var(--amber);font-weight:700}.faible{color:var(--green);font-weight:700}
 @media(max-width:600px){#map{height:52vh}}
 </style>
 </head>
@@ -89,13 +95,23 @@ nav.tabs button span{font-size:20px;display:block}
 </div>
 
 <section id="tab-map">
+<div class="card hidden" id="routeCard">
+<h3>📍 Route — <span id="routeImmat"></span></h3>
+<div id="routeInfo" style="font-size:13px;margin:4px 0"></div>
+<div class="row"><button id="btnChVeh" class="warn">🚨 Chasser ce véhicule</button><button id="btnCloseRoute" class="ghost" style="flex:0 0 auto">Fermer</button></div>
+</div>
 <div id="map"></div>
 </section>
 
 <section id="tab-alerts" class="hidden">
 <div class="card"><h3>🚨 Alertes — <span id="count">0</span></h3>
 <label>🔍 Matricule, véhicule, nom…<input id="search" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" placeholder="ex. 1542, EXT-, Benali"></label>
-<div class="tbl"><table><thead><tr><th>Heure</th><th>Infraction</th><th>Véhicule</th><th>Conducteur</th><th>Vitesse</th><th>Statut</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="row" style="margin:6px 0">
+<button id="modeVeh" class="ghost btn-mode">🚗 Véhicules (résumé)</button>
+<button id="modeInf" class="ghost btn-mode on">🚨 Infractions</button>
+</div>
+<div class="tbl"><table><thead><th>Heure</th><th>Infraction</th><th>Véhicule</th><th>Conducteur</th><th>Vitesse</th><th>Statut</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="tbl hidden" id="tblVeh"><table id="vehTable"><thead><tr><th>Véhicule</th><th>Résumé (infractions)</th><th>Graves</th><th>Dernière</th><th></th></tr></thead><tbody id="vehRows"></tbody></table></div>
 </div>
 </section>
 
@@ -128,8 +144,8 @@ nav.tabs button span{font-size:20px;display:block}
 </nav>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-let BASE='',TOKEN='',UNITE=null,map,layer,unitsLayer,meMarker=null,infMarkers=[];
-let myPos=null,clickArm=false,autoT=null,unitsCentered=false,lastList=[];
+let BASE='',TOKEN='',UNITE=null,map,layer,unitsLayer,routeLayer,meMarker=null,infMarkers=[];
+let myPos=null,clickArm=false,autoT=null,unitsCentered=false,lastList=[],vehMode=false,curRoute=null;
 const $=id=>document.getElementById(id);
 function log(m){const b=$('log');if(!b)return;const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+m;b.prepend(d);}
 function auth(){return TOKEN?{'Authorization':'Bearer '+TOKEN}:{};}
@@ -174,7 +190,7 @@ function initMap(){
     '🧡 OSM Humanitaire':L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{attribution:'© HOT © OSM',subdomains:'abc',maxZoom:20}),
     '🛰️ Esri Satellite':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri',maxZoom:19})};
   bases['🇫🇷 OSM France'].addTo(map);L.control.layers(bases).addTo(map);
-  layer=L.layerGroup().addTo(map);unitsLayer=L.layerGroup().addTo(map);
+  layer=L.layerGroup().addTo(map);unitsLayer=L.layerGroup().addTo(map);routeLayer=L.layerGroup().addTo(map);
   map.on('click',e=>{if(!clickArm)return;clickArm=false;$('btnClick').textContent='👆 Cliquer carte';setPos(e.latlng.lat,e.latlng.lng,'Carte');});
   // zoom par défaut : wilaya de l'unité via sa position moyenne (unités chargées au refresh)
 }
@@ -207,7 +223,7 @@ async function refresh(){
     const j=await api('/api/unites/infractions?'+q.toString());
     const list=j.infractions||[];
     lastList=list;
-    drawInf(filtresPerso(list));drawTable(list);drawStats(j.stats||{});
+    drawInf(filtresPerso(list));if(vehMode)drawVehTable(list);else drawTable(list);drawStats(j.stats||{});
     // unités du territoire
     try{
       const uq=new URLSearchParams();if(myPos){} // territoire imposé serveur
@@ -267,9 +283,81 @@ function drawStats(s){
     '<div class="stat"><b>'+Object.keys(s.parCategorie||{}).length+'</b><span>Catégories</span></div>';
 }
 let searchT=null;
-document.getElementById('search').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{drawTable(lastList||[]);},250);});
-document.getElementById('fVit').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{drawInf(filtresPerso(lastList||[]));drawTable(lastList||[]);},300);});
-document.getElementById('fExc').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{drawInf(filtresPerso(lastList||[]));drawTable(lastList||[]);},300);});
+// --- Gravité (même logique que l'app Android) ---
+function gravite(infraction,exces){
+  switch(infraction){
+    case 'circulation à contresens':return 100;
+    case 'zone interdite':return 80;
+    case 'conduite longue sans arrêt':return 50;
+    case 'exces de vitesse':return 40+Math.min(Number(exces)||0,60);
+    case 'arrêt interdit':case 'stationnement interdit':return 30;
+    default:return 20;
+  }
+}
+const grave=x=>gravite(x.infraction,x.exces)>=50;
+const libelle=x=>[x.marque,x.modele,x.couleur].filter(Boolean).join(' ')||('Véhicule '+(x.immatriculation||x.carId));
+// --- Vue « par véhicule » (résumé) ---
+function drawVehTable(list){
+  const q=($('search').value||'').trim().toLowerCase();
+  const by={};
+  list.forEach(x=>{const k=String(x.carId||'');if(!k)return;if(!by[k])by[k]={carId:k,immat:x.immatriculation||'',types:{},total:0,graves:0,statuts:{},last:0,lastType:null,lastId:null,cat:x.categorieVehicule||''};const v=by[k];
+    v.immat=v.immat||x.immatriculation||'';v.total++;if(grave(x))v.graves++;v.types[x.infraction]=(v.types[x.infraction]||0)+1;v.statuts[x.statut||'']=(v.statuts[x.statut||'']||0)+1;
+    const t=new Date(x.recordedAt).getTime();if(t>v.last){v.last=t;v.lastType=x.infraction;v.lastId=x.id;}
+  });
+  let arr=Object.values(by).map(v=>({...v,x:list.find(x=>x.carId===v.carId)})).filter(v=>!q||String(v.immat||'').toLowerCase().includes(q)||String(v.carId).toLowerCase().includes(q)||String(v.x.conducteurNom||'').toLowerCase().includes(q)||String(libelle(v.x)).toLowerCase().includes(q));
+  arr.sort((a,b)=>b.last-a.last);
+  $('count').textContent=arr.length+' véhicules';
+  $('vehRows').innerHTML=arr.slice(0,250).map(v=>{
+    const types=Object.entries(v.types).sort((a,b)=>b[1]-a[1]).map(t=>t[1]+'× '+t[0]).join(', ');
+    const cls=v.graves>0?'grave':v.total>=3?'moyen':'faible';
+    return '<tr class="vehrow" data-car="'+v.carId+'"><td><b>'+libelle(v.x)+'</b><br><small>'+(v.immat||'')+(v.cat?' · <i>'+v.cat+'</i>':'')+'</small></td>'+
+      '<td>'+types+'</td><td class="'+cls+'">'+(v.graves||0)+'/'+v.total+'</td>'+
+      '<td>'+new Date(v.last).toLocaleString('fr-DZ')+'<br><small>'+v.lastType+'</small></td>'+
+      '<td><button data-car="'+v.carId+'" data-id="'+v.lastId+'" class="chasse" title="Préparer interception">🚔</button><button data-car="'+v.carId+'" class="routeb" title="Voir trajet">📍</button></td></tr>';
+  }).join('')||'<tr><td colspan="5" style="text-align:center;color:#999">Aucun véhicule</td></tr>';
+}
+function setMode(v){
+  vehMode=v;
+  $('modeVeh').classList.toggle('on',v);$('modeInf').classList.toggle('on',!v);
+  $('tblVeh').classList.toggle('hidden',!v);document.querySelector('#tab-alerts table').parentElement.classList.toggle('hidden',v);
+  if(v)drawVehTable(lastList||[]);else drawTable(lastList||[]);
+}
+$('modeVeh').onclick=()=>setMode(true);
+$('modeInf').onclick=()=>setMode(false);
+// --- Route d'un véhicule ---
+async function showRoute(car,immat){
+  try{
+    const j=await api('/api/unites/trajet?carId='+encodeURIComponent(car));
+    const pts=(j.points||[]).map(p=>({latitude:p.latitude??p.lat,longitude:p.longitude??p.lon}));
+    routeLayer.clearLayers();
+    if(pts.length>=2){
+      L.polyline(pts.map(p=>[p.latitude,p.longitude]),{color:'#dc2626',weight:4}).addTo(routeLayer);
+      L.circleMarker([pts[0].latitude,pts[0].longitude],{radius:6,color:'#16a34a',fillOpacity:.9}).addTo(routeLayer).bindPopup('Départ');
+      L.circleMarker([pts[pts.length-1].latitude,pts[pts.length-1].longitude],{radius:6,color:'#dc2626',fillOpacity:.9}).addTo(routeLayer).bindPopup('Dernière position');
+      map.flyToBounds(L.latLngBounds(pts.map(p=>[p.latitude,p.longitude])),{duration:.8});
+    }else if(pts.length===1){map.flyTo([pts[0].latitude,pts[0].longitude],14);}
+    curRoute=car;
+    $('routeImmat').textContent=immat||j.immatriculation||car;
+    $('routeInfo').textContent=(pts.length?pts.length+' positions':'Aucun point GPS')+(j.immatriculation?(' · '+j.immatriculation):'');
+    $('routeCard').classList.remove('hidden');
+    document.querySelector('[data-t="tab-map"]').click();
+    setTimeout(()=>map.invalidateSize(),60);
+  }catch(err){log('trajet: '+err.message);}
+}
+function closeRoute(){if(routeLayer)routeLayer.clearLayers();curRoute=null;$('routeCard').classList.add('hidden');}
+$('btnCloseRoute').onclick=closeRoute;
+$('btnChVeh').onclick=()=>{if(!curRoute)return;chasser(curRoute,'',curRoute);};
+document.addEventListener('click',async e=>{
+  const b=e.target.classList&&e.target.classList.contains('vehrow')?e.target.closest('tr.vehrow'):null;
+  if(b&&!e.target.classList.contains('chasse')&&!e.target.classList.contains('routeb'))showRoute(b.dataset.car,b.querySelector('b').textContent);
+});
+document.addEventListener('click',async e=>{
+  const b=e.target.classList&&e.target.classList.contains('routeb')?e.target:null;
+  if(!b)return;showRoute(b.dataset.car,'');
+});
+document.getElementById('search').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{if(vehMode)drawVehTable(lastList||[]);else drawTable(lastList||[]);},250);});
+document.getElementById('fVit').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{drawInf(filtresPerso(lastList||[]));if(vehMode)drawVehTable(lastList||[]);else drawTable(lastList||[]);},300);});
+document.getElementById('fExc').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(()=>{drawInf(filtresPerso(lastList||[]));if(vehMode)drawVehTable(lastList||[]);else drawTable(lastList||[]);},300);});
 document.addEventListener('click',async e=>{
   const row=e.target.closest&&e.target.closest('tr.infrow');
   if(row&&!e.target.classList.contains('traite')&&!e.target.classList.contains('chasse')){
@@ -287,21 +375,22 @@ document.addEventListener('click',async e=>{
 // --- Interception ---
 let chData=null,chTimer=null,chTargetLayer=null;
 function gotoTab(t){document.querySelector('[data-t="'+t+'"]').click();}
-document.addEventListener('click',async e=>{
-  const b=e.target.classList&&e.target.classList.contains('chasse')?e.target:null;
-  if(!b)return;
-  const car=b.dataset.car||'',id=+b.dataset.id;
-  if(!id){log('pas d id infraction');return;}
+async function chasser(car,id,immat){
   try{
-    const j=await api('/api/unites/interception?carId='+encodeURIComponent(car)+'&infractionId='+id);
-    chData={...j,infractionId:id};
+    const j=await api('/api/unites/interception?carId='+encodeURIComponent(car)+(id?'&infractionId='+id:''));
+    chData={...j,infractionId:id||0};
     $('chasseVide').classList.add('hidden');$('chasseCard').classList.remove('hidden');
-    $('chImmat').textContent=j.cible.immatriculation||j.cible.carId;
+    $('chImmat').textContent=immat||j.cible.immatriculation||j.cible.carId;
     $('chInfo').innerHTML='🎯 <b>'+j.cible.vitesse+' km/h</b> · prédit +5 min : <b>'+j.prediction.lat.toFixed(4)+', '+j.prediction.lon.toFixed(4)+'</b> ('+j.prediction.methode+')';
     $('chUnits').innerHTML=j.unites.length?j.unites.map(u=>'<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px;margin-bottom:6px"><b>'+u.nom+'</b><br><small>'+u.distKm+' km · ETA ~'+u.etaMin+' min'+(u.telephone?' · '+u.telephone:'')+'</small><br><button data-assign="'+u.id+'">✔ Assigner</button></div>').join(''):'<i>Aucune unité mobile dans la wilaya</i>';
     drawChasse();gotoTab('tab-chasse');
     log('OK interception prête pour '+car);
   }catch(err){log('interception: '+err.message);}
+}
+document.addEventListener('click',async e=>{
+  const b=e.target.classList&&e.target.classList.contains('chasse')?e.target:null;
+  if(!b)return;
+  chasser(b.dataset.car||'',+b.dataset.id||0,'');
 });
 document.addEventListener('click',async e=>{
   const b=e.target.dataset&&e.target.dataset.assign?e.target:null;
