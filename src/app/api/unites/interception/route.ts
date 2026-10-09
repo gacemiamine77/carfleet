@@ -114,25 +114,89 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH /api/unites/interception {infractionId, uniteId} — assigne l'interception (statut notifie)
+// PATCH /api/unites/interception — cycle d'interception :
+//   {infractionId, uniteId, action:"assigner"|absent}  → statut "notifie" + assignation
+//   {infractionId, action:"accepter", uniteId?}        → statut "en_cours" + acceptation
+//   {infractionId, action:"cloturer", uniteId?, resultat, compteRendu} → "terminee"/"abandonnee"
 export async function PATCH(req: NextRequest) {
   const auth = await getAuthUnite(req);
   try {
-    const { infractionId, uniteId } = await req.json();
-    if (!infractionId || !uniteId) return NextResponse.json({ error: "infractionId + uniteId requis" }, { status: 400 });
-    const u = await db.select().from(unitesSecurite).where(eq(unitesSecurite.id, Number(uniteId))).limit(1);
-    if (!u.length || (auth && u[0].codeWilaya !== auth.unite.codeWilaya)) {
-      return NextResponse.json({ error: "Unité hors territoire" }, { status: 403 });
-    }
+    const body = await req.json();
+    const { infractionId, uniteId, action, resultat, compteRendu } = body as {
+      infractionId: number;
+      uniteId?: number;
+      action?: "assigner" | "accepter" | "cloturer";
+      resultat?: string;
+      compteRendu?: string;
+    };
+    if (!infractionId) return NextResponse.json({ error: "infractionId requis" }, { status: 400 });
+    const act = action || "assigner";
     const r = await db.select().from(infractionsConstatees).where(eq(infractionsConstatees.id, Number(infractionId))).limit(1);
-    if (!r.length || (auth && r[0].codeWilaya !== auth.unite.codeWilaya)) {
-      return NextResponse.json({ error: "Infraction hors territoire" }, { status: 403 });
+    if (!r.length) return NextResponse.json({ error: "Infraction introuvable" }, { status: 404 });
+
+    if (act === "assigner") {
+      if (!uniteId) return NextResponse.json({ error: "uniteId requis" }, { status: 400 });
+      const u = await db.select().from(unitesSecurite).where(eq(unitesSecurite.id, Number(uniteId))).limit(1);
+      if (!u.length || (auth && u[0].codeWilaya !== auth.unite.codeWilaya)) {
+        return NextResponse.json({ error: "Unité hors territoire" }, { status: 403 });
+      }
+      if (auth && r[0].codeWilaya !== auth.unite.codeWilaya) {
+        return NextResponse.json({ error: "Infraction hors territoire" }, { status: 403 });
+      }
+      await db.update(infractionsConstatees)
+        .set({ assigneUniteId: u[0].id, statut: "notifie" as any, notifieAt: new Date() })
+        .where(eq(infractionsConstatees.id, Number(infractionId)));
+      const { notifierUnite } = await import("@/lib/notifications");
+      await notifierUnite(u[0].id, {
+        type: "interception",
+        titre: `🚨 Interception — ${r[0].immatriculation || r[0].carId || ""}`,
+        corps: `${r[0].infraction}${r[0].vitesse ? ` · ${r[0].vitesse} km/h` : ""} · ${r[0].wilaya || ""}`,
+        infractionId: r[0].id,
+        uniteSourceId: auth?.unite?.id ?? null,
+      });
+      const res = NextResponse.json({ ok: true, infractionId, action: "assigner", unite: { id: u[0].id, code: u[0].code, nom: u[0].nom, telephone: u[0].telephone } });
+      res.headers.set("Access-Control-Allow-Origin", "*");
+      return res;
     }
-    await db.update(infractionsConstatees).set({ assigneUniteId: u[0].id, statut: "notifie" as any })
-      .where(eq(infractionsConstatees.id, Number(infractionId)));
-    const res = NextResponse.json({ ok: true, infractionId, unite: { code: u[0].code, nom: u[0].nom, telephone: u[0].telephone } });
-    res.headers.set("Access-Control-Allow-Origin", "*");
-    return res;
+
+    if (act === "accepter") {
+      const acceptingUniteId = auth ? auth.unite.id : Number(uniteId || 0);
+      if (auth) {
+        const isMine = r[0].assigneUniteId === auth.unite.id;
+        if (!isMine) return NextResponse.json({ error: "Cette interception n'est pas assignée à votre unité" }, { status: 403 });
+      } else if (!acceptingUniteId) {
+        return NextResponse.json({ error: "uniteId requis (opérateur)" }, { status: 400 });
+      }
+      await db.update(infractionsConstatees)
+        .set({ statut: "en_cours" as any, accepteUniteId: acceptingUniteId, accepteAt: new Date() })
+        .where(eq(infractionsConstatees.id, Number(infractionId)));
+      const res = NextResponse.json({ ok: true, infractionId, action: "accepter", uniteId: acceptingUniteId });
+      res.headers.set("Access-Control-Allow-Origin", "*");
+      return res;
+    }
+
+    if (act === "cloturer") {
+      const closingUniteId = auth ? auth.unite.id : Number(uniteId || 0);
+      if (auth) {
+        const isMine = r[0].assigneUniteId === auth.unite.id || r[0].accepteUniteId === auth.unite.id;
+        if (!isMine) return NextResponse.json({ error: "Cette interception n'est pas assignée à votre unité" }, { status: 403 });
+      }
+      const statutFinal = resultat === "abandonnee" || resultat === "fausse_alerte" ? "abandonnee" : "terminee";
+      await db.update(infractionsConstatees)
+        .set({
+          statut: statutFinal as any,
+          clotureAt: new Date(),
+          ...(closingUniteId ? { accepteUniteId: closingUniteId, accepteAt: r[0].accepteAt ?? new Date() } : {}),
+          resultat: resultat || null,
+          compteRendu: compteRendu || null,
+        })
+        .where(eq(infractionsConstatees.id, Number(infractionId)));
+      const res = NextResponse.json({ ok: true, infractionId, action: "cloturer", statut: statutFinal, resultat: resultat || null });
+      res.headers.set("Access-Control-Allow-Origin", "*");
+      return res;
+    }
+
+    return NextResponse.json({ error: "action inconnue" }, { status: 400 });
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
   }

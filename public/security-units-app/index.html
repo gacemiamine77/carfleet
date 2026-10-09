@@ -45,6 +45,17 @@ nav.tabs button span{font-size:20px;display:block}
 .posbar>*{flex:1;min-width:120px}
 #meDot{font-size:12px;color:var(--mut)}
 .btn-mode.on{background:var(--blue);color:#fff}
+#notifWrap{position:relative}
+#btnNotif{background:none;border:0;font-size:20px;cursor:pointer;color:#fff}
+#notifBadge{position:absolute;top:-4px;right:-6px;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 6px;display:none}
+#notifPanel{position:absolute;right:0;top:44px;width:320px;max-height:60vh;overflow:auto;background:#fff;color:var(--txt);border-radius:12px;box-shadow:0 8px 24px #00000038;z-index:50;padding:10px}
+#notifPanel.off{display:none}
+#notifPanel h4{margin:0 0 8px;font-size:13px}
+.nitem{border-bottom:1px solid #eef2f7;padding:7px 2px;font-size:12px}
+.nitem b{display:block} .nitem.nonlu{background:#eff6ff;border-radius:8px;padding:7px}
+button.mini{padding:4px 8px;font-size:11px;border-radius:8px}
+.btn-heat.on{background:var(--red);color:#fff}
+.badge-rec{display:inline-block;background:#7c2d12;color:#ffedd5;border-radius:999px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px}
 #vehTable{width:100%;border-collapse:collapse;font-size:12px}
 #vehTable th,#vehTable td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left}
 #vehTable th{background:#f8fafc;position:sticky;top:0}
@@ -58,6 +69,11 @@ tr.vehrow{cursor:pointer}tr.vehrow:hover{background:#f1f5f9}
 <h1>🚓 Unités Sécurité Routière</h1>
 <small id="sub">Connexion requise</small>
 <div id="uchip"></div>
+<div id="notifWrap">
+<button id="btnNotif" title="Notifications">🔔</button>
+<span id="notifBadge"></span>
+<div id="notifPanel" class="off"><h4>🔔 Notifications</h4><div id="notifList"><i style="font-size:12px;color:var(--mut)">Aucune</i></div><button id="btnNotifLu" class="ghost mini" style="margin-top:8px;width:100%">✓ Tout marquer lu</button></div>
+</div>
 </header>
 <main>
 <!-- LOGIN -->
@@ -89,6 +105,7 @@ tr.vehrow{cursor:pointer}tr.vehrow:hover{background:#f1f5f9}
 <button id="btnGps" class="ghost">🛰️ GPS tablette</button>
 <button id="btnClick" class="ghost">👆 Cliquer carte</button>
 <button id="btnClearPos" class="ghost">✕ Effacer</button>
+<button id="btnHeat" class="ghost btn-heat">🔥 Chaleur</button>
 <button id="btnGo">🔄 Actualiser</button>
 </div>
 <div id="meDot"></div>
@@ -104,7 +121,7 @@ tr.vehrow{cursor:pointer}tr.vehrow:hover{background:#f1f5f9}
 </section>
 
 <section id="tab-alerts" class="hidden">
-<div class="card"><h3>🚨 Alertes — <span id="count">0</span></h3>
+<div class="card"><div style="display:flex;align-items:center;justify-content:space-between"><h3 style="margin:0">🚨 Alertes — <span id="count">0</span></h3><button id="btnCsv" class="ghost mini">📄 Export CSV</button></div>
 <label>🔍 Matricule, véhicule, nom…<input id="search" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" placeholder="ex. 1542, EXT-, Benali"></label>
 <div class="row" style="margin:6px 0">
 <button id="modeVeh" class="ghost btn-mode">🚗 Véhicules (résumé)</button>
@@ -144,8 +161,8 @@ tr.vehrow{cursor:pointer}tr.vehrow:hover{background:#f1f5f9}
 </nav>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-let BASE='',TOKEN='',UNITE=null,map,layer,unitsLayer,routeLayer,meMarker=null,infMarkers=[];
-let myPos=null,clickArm=false,autoT=null,unitsCentered=false,lastList=[],vehMode=false,curRoute=null;
+let BASE='',TOKEN='',UNITE=null,map,layer,unitsLayer,routeLayer,heat=null,heatOn=false,meMarker=null,infMarkers=[];
+let myPos=null,clickArm=false,autoT=null,notifsT=null,unitsCentered=false,lastList=[],vehMode=false,curRoute=null;
 const $=id=>document.getElementById(id);
 function log(m){const b=$('log');if(!b)return;const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+m;b.prepend(d);}
 function auth(){return TOKEN?{'Authorization':'Bearer '+TOKEN}:{};}

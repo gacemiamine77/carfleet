@@ -36,6 +36,13 @@
       "when": 1791382113843,
       "tag": "0004_device-serial",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791588482116,
+      "tag": "0005_interception-workflow",
+      "breakpoints": true
     }
   ]
 }

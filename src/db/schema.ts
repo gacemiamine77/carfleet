@@ -193,7 +193,7 @@ export const vehicleCurrentPosition = pgTable("vehicle_current_position", {
 // ─── UNITES DE SECURITE ROUTIERE (Police / Gendarmerie) ─────────
 // Périmètre = limites administratives de wilaya (codeWilaya 01-58)
 export const typeUniteEnum = pgEnum("type_unite", ["police", "gendarmerie"]);
-export const statutAlerteEnum = pgEnum("statut_alerte", ["nouveau", "notifie", "traite"]);
+export const statutAlerteEnum = pgEnum("statut_alerte", ["nouveau", "notifie", "en_cours", "terminee", "abandonnee", "traite"]);
 
 export const unitesSecurite = pgTable("unites_securite", {
   id: serial("id").primaryKey(),
@@ -281,7 +281,29 @@ export const infractionsConstatees = pgTable("infractions_constatees", {
   uniteId: integer("unite_id").references(() => unitesSecurite.id),
   assigneUniteId: integer("assigne_unite_id").references(() => unitesSecurite.id),
   statut: statutAlerteEnum("statut").notNull().default("nouveau"),
+  // Cycle d'interception : assignation → acceptation → clôture (résultat + compte rendu)
+  notifieAt: timestamp("notifie_at", { withTimezone: true }),
+  accepteUniteId: integer("accepte_unite_id").references(() => unitesSecurite.id),
+  accepteAt: timestamp("accepte_at", { withTimezone: true }),
+  clotureAt: timestamp("cloture_at", { withTimezone: true }),
+  resultat: varchar("resultat", { length: 40 }), // pv | verbalisation | controle_ok | fausse_alerte | abandonnee
+  compteRendu: text("compte_rendu"),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// ─── NOTIFICATIONS UNITES (cloche in-app / SMS-ready) ───────────
+// Créées à l'assignation d'une interception (et autres événements).
+// Une ligne = une notif pour une unité ; `lu` = accusé de lecture app.
+export const notificationsUnites = pgTable("notifications_unites", {
+  id: serial("id").primaryKey(),
+  uniteId: integer("unite_id").notNull().references(() => unitesSecurite.id),
+  type: varchar("type", { length: 30 }).notNull().default("info"), // interception | info | alerte
+  titre: varchar("titre", { length: 200 }).notNull(),
+  corps: text("corps"),
+  infractionId: integer("infraction_id"),
+  uniteSourceId: integer("unite_source_id"),
+  lu: boolean("lu").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

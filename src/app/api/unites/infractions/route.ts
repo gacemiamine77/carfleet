@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { infractionsConstatees } from "@/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, inArray, gte, and } from "drizzle-orm";
 import { resolveWilayaForPosition } from "@/lib/unites";
 
 export const dynamic = "force-dynamic";
@@ -52,13 +52,15 @@ export async function GET(req: NextRequest) {
   const hasPos = Number.isFinite(latF) && Number.isFinite(lonF);
   const format = searchParams.get("format") || "json";
   const limit = Math.min(2000, Math.max(1, Number(searchParams.get("limit") || 500)));
+  // Export CSV = rapports : on veut le maximum de lignes du territoire.
+  const effLimit = format === "csv" ? 2000 : limit;
 
   // 1. PAS de dispatch ici (le tick s'en charge déjà en incrémental) :
   // le faire à chaque lecture bloquait la réponse (N requêtes Neon avant de répondre).
   // Lecture directe de la DB persistée.
   let rows: any[] = [];
   try {
-    rows = await db.select().from(infractionsConstatees).orderBy(desc(infractionsConstatees.recordedAt)).limit(limit * 2);
+    rows = await db.select().from(infractionsConstatees).orderBy(desc(infractionsConstatees.recordedAt)).limit(effLimit * 2);
   } catch (e: any) {
     return NextResponse.json({ error: "table manquante ? lancez drizzle migrate", details: String(e) }, { status: 500 });
   }
@@ -86,7 +88,7 @@ export async function GET(req: NextRequest) {
   if (triF === "gravite") withDist.sort((a, b) => scoreGravite(b.r.infraction, b.r.exces) - scoreGravite(a.r.infraction, a.r.exces));
   else if (triF === "distance" && hasPos) withDist.sort((a, b) => (a.distM as number) - (b.distM as number));
   else withDist.sort((a, b) => new Date(b.r.recordedAt).getTime() - new Date(a.r.recordedAt).getTime());
-  filtered = withDist.slice(0, limit).map((x) => (hasPos ? { ...x.r, distM: x.distM } : x.r));
+  filtered = withDist.slice(0, effLimit).map((x) => (hasPos ? { ...x.r, distM: x.distM } : x.r));
 
   // 2b. Détails conducteur (nom, prénom, âge, tél) via la table conducteurs
   let condParNom = new Map<string, any>();
@@ -130,6 +132,33 @@ export async function GET(req: NextRequest) {
     }
   } catch {}
 
+  // 2d. Récidive : nb d'infractions (total + graves ≥50) du même véhicule sur 30 jours
+  try {
+    const carIds = [...new Set((filtered as any[]).map((r) => r.carId).filter(Boolean))];
+    if (carIds.length) {
+      const rec = await db.select({
+        carId: infractionsConstatees.carId,
+        total: sql<number>`count(*)::int`,
+        graves: sql<number>`count(*) filter (where (case infraction
+          when 'circulation à contresens' then 100
+          when 'zone interdite' then 80
+          when 'conduite longue sans arrêt' then 50
+          when 'exces de vitesse' then (40 + least(coalesce(exces, 0), 60))
+          when 'arrêt interdit' then 30
+          when 'stationnement interdit' then 30
+          else 20 end) >= 50)::int`,
+      }).from(infractionsConstatees)
+        .where(and(inArray(infractionsConstatees.carId, carIds as any), gte(infractionsConstatees.recordedAt, new Date(Date.now() - 30 * 86400000))))
+        .groupBy(infractionsConstatees.carId);
+      const rmap = new Map(rec.map((x) => [x.carId, x]));
+      filtered = filtered.map((r: any) => ({
+        ...r,
+        recidive30: rmap.get(r.carId)?.total ?? 0,
+        recidiveGrave: rmap.get(r.carId)?.graves ?? 0,
+      }));
+    }
+  } catch {}
+
   // 3. Stats pour le territoire filtré
   const parType: Record<string, number> = {};
   const parCategorie: Record<string, number> = {};
@@ -140,6 +169,31 @@ export async function GET(req: NextRequest) {
     parCategorie[r.categorieVehicule || "leger"] = (parCategorie[r.categorieVehicule || "leger"] || 0) + 1;
     parWilaya[`${r.codeWilaya} - ${r.wilaya}`] = (parWilaya[`${r.codeWilaya} - ${r.wilaya}`] || 0) + 1;
     parStatut[r.statut] = (parStatut[r.statut] || 0) + 1;
+  }
+
+  if (format === "csv") {
+    const esc = (v: any) => {
+      if (v == null) return "";
+      const s = String(v);
+      return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const head = ["recordedAt", "immatriculation", "carId", "marque", "modele", "couleur", "categorieVehicule", "infraction", "vitesse", "vitesseLimite", "exces", "conducteur", "wilaya", "codeWilaya", "statut", "resultat", "latitude", "longitude", "recidive30", "recidiveGrave"];
+    const lines = [head.join(";")];
+    for (const r of filtered as any[]) {
+      lines.push([
+        r.recordedAt, r.immatriculation, r.carId, r.marque, r.modele, r.couleur, r.categorieVehicule,
+        r.infraction, r.vitesse, r.vitesseLimite, r.exces, r.conducteurNom, r.wilaya, r.codeWilaya,
+        r.statut, r.resultat, r.latitude, r.longitude, r.recidive30 ?? 0, r.recidiveGrave ?? 0,
+      ].map(esc).join(";"));
+    }
+    const csv = "\uFEFF" + lines.join("\r\n");
+    return new NextResponse(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="infractions-${codeWilaya || "all"}-${new Date().toISOString().slice(0, 10)}.csv"`,
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
   }
 
   if (format === "geojson") {
