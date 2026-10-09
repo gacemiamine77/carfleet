@@ -9,6 +9,7 @@
         android:layout_height="match_parent" />
 
     <TextView
+        android:id="@+id/tvAttributions"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
@@ -37,4 +38,196 @@
         android:textColor="#ffffff"
         android:text="🚨 Chasser"
         android:visibility="gone" />
+
+    <!-- 🗺️ Fond de carte + couches + légende -->
+    <Button
+        android:id="@+id/btnBg"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:text="🗺️"
+        android:contentDescription="Fond de carte et légende" />
+
+    <LinearLayout
+        android:id="@+id/panelLayers"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="52dp"
+        android:orientation="vertical"
+        android:background="#F2FFFFFF"
+        android:padding="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🛰️ Fond de carte"
+            android:textColor="#111827"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/rgFond"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="2dp">
+
+            <RadioButton
+                android:id="@+id/rbOsm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="OSM"
+                android:textSize="11sp" />
+
+            <RadioButton
+                android:id="@+id/rbVoyager"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Voyager"
+                android:textSize="11sp" />
+
+            <RadioButton
+                android:id="@+id/rbLight"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Clair"
+                android:textSize="11sp" />
+
+            <RadioButton
+                android:id="@+id/rbTopo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Relief"
+                android:textSize="11sp" />
+        </RadioGroup>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Layers"
+            android:textColor="#111827"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <CheckBox
+            android:id="@+id/cbInfractions"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="🚨 Infractions"
+            android:textColor="#111827"
+            android:textSize="12sp" />
+
+        <CheckBox
+            android:id="@+id/cbUnites"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="🚓 Unités de sécurité"
+            android:textColor="#111827"
+            android:textSize="12sp" />
+
+        <CheckBox
+            android:id="@+id/cbRoute"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="🛣️ Trajet / route"
+            android:textColor="#111827"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="— Légende —"
+            android:textColor="#6b7280"
+            android:textSize="11sp" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="2dp">
+            <View android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/dot_grave" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="5dp"
+                android:text="Crise (score ≥ 80)" android:textColor="#111827" android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <View android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/dot_moyen" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="5dp"
+                android:text="Moyen (score ≥ 50)" android:textColor="#111827" android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <View android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/dot_faible" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="5dp"
+                android:text="Faible (score &lt; 50)" android:textColor="#111827" android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="4dp">
+            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_unit_motards" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="5dp"
+                android:text="Motards" android:textColor="#111827" android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_unit_barrage_fixe" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="5dp"
+                android:text="Barrage fixe" android:textColor="#111827" android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_unit_barrage_mobile" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="5dp"
+                android:text="Barrage mobile" android:textColor="#111827" android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_unit_vehicule_mobile" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="5dp"
+                android:text="Unité mobile" android:textColor="#111827" android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_unit_poste_fixe" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="5dp"
+                android:text="Poste fixe" android:textColor="#111827" android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
 </FrameLayout>

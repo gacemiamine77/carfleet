@@ -7,6 +7,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.LinearLayout
+import android.widget.RadioGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -25,8 +29,8 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polyline
 
-// 🗺️ Carte : infractions du territoire + unités (cache de tuiles osmdroid = hors-ligne partiel)
-// + route empruntée d'un véhicule poursuivi + bouton « Chasser » (alerte unités proches).
+// 🗺️ Carte : infractions du territoire (marqueurs colorés par gravité) + unités (icône par type)
+// + fond de carte multiple + couches activables (Tuiles/Unités/Trajet) + légende + bouton « Chasser ».
 class MapFragment : Fragment() {
     private val vm: SharedViewModel by activityViewModels()
     private var map: MapView? = null
@@ -38,6 +42,38 @@ class MapFragment : Fragment() {
     private var chasseCarId: String? = null
     private var chasseVehicule: Vehicule? = null
 
+    private var visInfractions = true
+    private var visUnites = true
+    private var visRoute = true
+
+    /** Fonds de carte proposés (nom ↔ constructeur de source de tuiles). */
+    private val fonds = listOf(
+        "OSM" to { XYTileSource("OSMFrance", 0, 20, 256, ".png",
+            arrayOf("https://a.tile.openstreetmap.fr/osmfr/", "https://b.tile.openstreetmap.fr/osmfr/", "https://c.tile.openstreetmap.fr/osmfr/")) },
+        "Voyager" to { XYTileSource("CartoVoyager", 0, 20, 256, ".png",
+            arrayOf("https://a.basemaps.cartocdn.com/rastertiles/voyager/")) },
+        "Clair" to { XYTileSource("CartoLight", 0, 20, 256, ".png",
+            arrayOf("https://a.basemaps.cartocdn.com/light_all/")) },
+        "Relief" to { XYTileSource("OpenTopo", 0, 17, 256, ".png",
+            arrayOf("https://tile.opentopomap.org/")) },
+    )
+    private val attributions = mapOf(
+        "OSM" to "© OpenStreetMap contributors © OSM France",
+        "Voyager" to "© OpenStreetMap contributors © CARTO",
+        "Clair" to "© OpenStreetMap contributors © CARTO",
+        "Relief" to "© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)",
+    )
+
+    /** Icône d'une unité selon son moyen (motards, barrage…). */
+    private fun iconeUnite(moyen: String?): Int = when (moyen?.trim()) {
+        "motards" -> R.drawable.ic_unit_motards
+        "barrage_fixe" -> R.drawable.ic_unit_barrage_fixe
+        "barrage_mobile" -> R.drawable.ic_unit_barrage_mobile
+        "vehicule_mobile" -> R.drawable.ic_unit_vehicule_mobile
+        "poste_fixe" -> R.drawable.ic_unit_poste_fixe
+        else -> R.drawable.ic_unit_marker
+    }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return inflater.inflate(R.layout.fragment_map, container, false)
     }
@@ -45,25 +81,39 @@ class MapFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val mv = view.findViewById<MapView>(R.id.osmMap)
         map = mv
-        // Fond OSM France + cache local osmdroid. Attribution affichée dans le layout.
-        mv.setTileSource(XYTileSource(
-            "OSMFrance", 0, 20, 256, ".png",
-            arrayOf(
-                "https://a.tile.openstreetmap.fr/osmfr/",
-                "https://b.tile.openstreetmap.fr/osmfr/",
-                "https://c.tile.openstreetmap.fr/osmfr/"
-            )
-        ))
+        val tvAttr = view.findViewById<TextView>(R.id.tvAttributions)
+        // Fond par défaut : OSM France + cache local osmdroid.
+        setFond(0, tvAttr)
+
         mv.setMultiTouchControls(true)
-        // Zoom par défaut sur la wilaya du compte connecté
         val c = Wilayas.centre(vm.session.unite?.codeWilaya)
         mv.controller.setZoom(9.0)
         mv.controller.setCenter(GeoPoint(c[0], c[1]))
 
         val btnNav = view.findViewById<Button>(R.id.btnNav)
         val btnChasser = view.findViewById<Button>(R.id.btnChasser)
+        val btnBg = view.findViewById<Button>(R.id.btnBg)
+        val panel = view.findViewById<LinearLayout>(R.id.panelLayers)
         btnNav.setOnClickListener { naviguer() }
         btnChasser.setOnClickListener { ouvrirChasse() }
+        btnBg.setOnClickListener {
+            panel.visibility = if (panel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }
+
+        view.findViewById<RadioGroup>(R.id.rgFond).setOnCheckedChangeListener { _, id ->
+            when (id) {
+                R.id.rbVoyager -> setFond(1, tvAttr)
+                R.id.rbLight -> setFond(2, tvAttr)
+                R.id.rbTopo -> setFond(3, tvAttr)
+                else -> setFond(0, tvAttr)
+            }
+        }
+        val cbInf = view.findViewById<CheckBox>(R.id.cbInfractions)
+        val cbUni = view.findViewById<CheckBox>(R.id.cbUnites)
+        val cbRou = view.findViewById<CheckBox>(R.id.cbRoute)
+        cbInf.setOnCheckedChangeListener { _, b -> visInfractions = b; appliquerVisibilite() }
+        cbUni.setOnCheckedChangeListener { _, b -> visUnites = b; appliquerVisibilite() }
+        cbRou.setOnCheckedChangeListener { _, b -> visRoute = b; appliquerVisibilite() }
 
         vm.items.observe(viewLifecycleOwner) { drawInfractions() }
         vm.unites.observe(viewLifecycleOwner) { drawUnites(it) }
@@ -102,6 +152,22 @@ class MapFragment : Fragment() {
         pollWhileStarted(vm)
     }
 
+    private fun setFond(index: Int, tvAttr: TextView) {
+        val mv = map ?: return
+        val (nom, build) = fonds[index]
+        mv.setTileSource(build())
+        tvAttr.text = attributions[nom] ?: ""
+        mv.invalidate()
+    }
+
+    /** Masque/affiche les couches selon les cases du panneau. */
+    private fun appliquerVisibilite() {
+        markers.values.forEach { it.setEnabled(visInfractions) }
+        uniteMarkers.forEach { it.setEnabled(visUnites) }
+        routeOverlays.forEach { it.setEnabled(visRoute) }
+        map?.invalidate()
+    }
+
     private fun drawInfractions() {
         val mv = map ?: return
         val list = vm.items.value.orEmpty().take(500)
@@ -119,6 +185,7 @@ class MapFragment : Fragment() {
             m.snippet = "${x.recordedAt.take(16).replace("T", " ")} · ${x.vitesse?.toInt() ?: 0} km/h · ${x.statut}"
             m.icon = ContextCompat.getDrawable(requireContext(), Gravite.icone(x))
             m.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            m.setEnabled(visInfractions)
             mv.overlays.add(m)
             markers[x.id] = m
         }
@@ -133,10 +200,10 @@ class MapFragment : Fragment() {
             val m = Marker(mv)
             m.position = GeoPoint(u.latitude, u.longitude)
             m.title = "🚓 ${u.nom}"
-            m.snippet = "${u.type} · ${u.moyen}"
+            m.snippet = "${u.type} · ${u.moyen} — ${u.code}"
             m.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-            // Icône dédiée (l'icône par défaut d'osmdroid est partagée : la teinter colorierait tous les marqueurs)
-            m.icon = ContextCompat.getDrawable(requireContext(), R.drawable.ic_unit_marker)
+            m.icon = ContextCompat.getDrawable(requireContext(), iconeUnite(u.moyen))
+            m.setEnabled(visUnites)
             mv.overlays.add(m)
             uniteMarkers.add(m)
         }
@@ -154,6 +221,7 @@ class MapFragment : Fragment() {
             line.outlinePaint.color = 0xFFDC2626.toInt()
             line.outlinePaint.strokeWidth = 8f
             line.title = "Trajet ${tr.immatriculation ?: tr.carId}"
+            line.setEnabled(visRoute)
             mv.overlays.add(line)
             routeOverlays.add(line)
         }
@@ -162,12 +230,14 @@ class MapFragment : Fragment() {
             start.position = pts.first()
             start.title = "Départ"
             start.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            start.setEnabled(visRoute)
             mv.overlays.add(start); routeOverlays.add(start)
 
             val end = Marker(mv)
             end.position = pts.last()
             end.title = "Position actuelle"
             end.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            end.setEnabled(visRoute)
             mv.overlays.add(end); routeOverlays.add(end)
 
             try { mv.zoomToBoundingBox(BoundingBox.fromGeoPoints(pts), true, 60) } catch (_: Exception) {}
@@ -188,7 +258,10 @@ class MapFragment : Fragment() {
         val act = activity ?: return
         viewLifecycleOwner.lifecycleScope.launch {
             val resp = try { vm.interception(carId) } catch (e: Exception) { null }
-            if (resp == null) { Toast.makeText(context, "Chasse indisponible (réseau)", Toast.LENGTH_LONG).show(); return@launch }
+            if (resp == null) {
+                Toast.makeText(context, "Chasse impossible — serveur/session injoignable, réessayez", Toast.LENGTH_LONG).show()
+                return@launch
+            }
             if (resp.error != null) { Toast.makeText(context, resp.error, Toast.LENGTH_LONG).show(); return@launch }
             if (resp.unites.isEmpty()) { Toast.makeText(context, "Aucune unité mobile à proximité", Toast.LENGTH_LONG).show(); return@launch }
             val labels = resp.unites.map { u ->
