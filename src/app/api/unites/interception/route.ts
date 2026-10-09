@@ -45,8 +45,8 @@ function predire(lat: number, lon: number, cap: number, vitesseKmh: number, rout
 // GET /api/unites/interception?carId=XXX|infractionId=N
 // → position live, point prédit +5 min, unités MOBILES de la wilaya triées par ETA.
 export async function GET(req: NextRequest) {
+  // Operator (plateforme, sans token unité) : auth = null → pas de restriction de territoire.
   const auth = await getAuthUnite(req);
-  if (!auth) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   const q = new URL(req.url).searchParams;
   const carId = q.get("carId") || "";
   const infId = Number(q.get("infractionId") || 0);
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
     } catch {}
     if (!live) return NextResponse.json({ error: "Véhicule introuvable" }, { status: 404 });
     const { code, name } = resolveWilayaForPosition(Number(live.latitude), Number(live.longitude));
-    if (code !== auth.unite.codeWilaya) {
+    if (auth && code !== auth.unite.codeWilaya) {
       return NextResponse.json({ error: "Hors de votre territoire", wilaya: name, codeWilaya: code }, { status: 403 });
     }
     const pred = predire(Number(live.latitude), Number(live.longitude), Number(live.cap) || 0, Number(live.vitesse) || 40, simRoute);
@@ -117,16 +117,15 @@ export async function GET(req: NextRequest) {
 // PATCH /api/unites/interception {infractionId, uniteId} — assigne l'interception (statut notifie)
 export async function PATCH(req: NextRequest) {
   const auth = await getAuthUnite(req);
-  if (!auth) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   try {
     const { infractionId, uniteId } = await req.json();
     if (!infractionId || !uniteId) return NextResponse.json({ error: "infractionId + uniteId requis" }, { status: 400 });
     const u = await db.select().from(unitesSecurite).where(eq(unitesSecurite.id, Number(uniteId))).limit(1);
-    if (!u.length || u[0].codeWilaya !== auth.unite.codeWilaya) {
+    if (!u.length || (auth && u[0].codeWilaya !== auth.unite.codeWilaya)) {
       return NextResponse.json({ error: "Unité hors territoire" }, { status: 403 });
     }
     const r = await db.select().from(infractionsConstatees).where(eq(infractionsConstatees.id, Number(infractionId))).limit(1);
-    if (!r.length || r[0].codeWilaya !== auth.unite.codeWilaya) {
+    if (!r.length || (auth && r[0].codeWilaya !== auth.unite.codeWilaya)) {
       return NextResponse.json({ error: "Infraction hors territoire" }, { status: 403 });
     }
     await db.update(infractionsConstatees).set({ assigneUniteId: u[0].id, statut: "notifie" as any })

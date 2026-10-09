@@ -19,6 +19,11 @@ const MapView = dynamic(() => import("@/components/MapView"), {
   ),
 });
 
+const VehiculesInfractions = dynamic(() => import("@/components/VehiculesInfractions"), {
+  ssr: false,
+  loading: () => <div className="text-xs text-gray-400 p-4">Chargement des véhicules…</div>,
+});
+
 interface CarInfo {
   carId: string;
   immatriculation?: string;
@@ -558,6 +563,7 @@ export default function Home() {
       </div>
 
       <div className={`flex-1 overflow-auto p-4 space-y-4 ${activeTab!=="unites" ? "hidden" : ""}`}>
+        <VehiculesInfractions />
         <div className="bg-white rounded-xl shadow p-4 border">
           <h3 className="font-bold text-sm mb-2">🚓 Forces de sécurité — chargement GeoJSON</h3>
           <p className="text-xs text-gray-500 mb-3">Uploadez un <code>FeatureCollection</code> de <code>Point [lon,lat]</code> : <code>code, nom, type (police|gendarmerie), moyen (barrage_fixe|barrage_mobile|motards|vehicule_mobile|poste_fixe), codeWilaya, wilaya, telephone</code>. Les unités sont positionnées sur les routes et visibles dans l’app unités.</p>
