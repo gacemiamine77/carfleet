@@ -41,4 +41,23 @@ interface ApiService {
         @Header("Authorization") auth: String,
         @Query("moyen") moyen: String? = null
     ): UnitsGeoJson
+
+    @GET("api/unites/trajet")
+    suspend fun trajet(
+        @Header("Authorization") auth: String,
+        @Query("carId") carId: String,
+        @Query("limit") limit: Int = 2000
+    ): TrajetResponse
+
+    @GET("api/unites/interception")
+    suspend fun interception(
+        @Header("Authorization") auth: String,
+        @Query("carId") carId: String
+    ): InterceptionResponse
+
+    @PATCH("api/unites/interception")
+    suspend fun assignerInterception(
+        @Header("Authorization") auth: String,
+        @Body body: InterceptionAssignRequest
+    ): Map<String, Any>
 }

@@ -22,6 +22,13 @@ object Gravite {
         else -> "🟡"
     }
 
+    /** Marqueur carte : grave = rouge, moyen = orange, sinon vert. */
+    fun icone(x: Infraction): Int = when {
+        score(x) >= 80 -> dz.sr.units.R.drawable.ic_marker_grave
+        score(x) >= 50 -> dz.sr.units.R.drawable.ic_marker_moyen
+        else -> dz.sr.units.R.drawable.ic_marker_faible
+    }
+
     fun formatDist(m: Double?): String {
         if (m == null) return ""
         return if (m < 1000) "à ${m.toInt()} m" else "à ${"%.1f".format(m / 1000)} km"

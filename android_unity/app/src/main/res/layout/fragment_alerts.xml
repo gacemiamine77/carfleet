@@ -30,13 +30,15 @@
                 android:id="@+id/spPeriode"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp" />
+                android:layout_marginEnd="6dp"
+                android:textColor="#1f2937" />
 
             <Spinner
                 android:id="@+id/spTri"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp" />
+                android:layout_marginEnd="6dp"
+                android:textColor="#1f2937" />
 
             <Button
                 android:id="@+id/btnMoi"
@@ -49,6 +51,7 @@
                 android:id="@+id/spRayon"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:textColor="#1f2937"
                 android:visibility="gone" />
         </LinearLayout>
     </HorizontalScrollView>
@@ -67,7 +70,9 @@
             android:hint="Plaque, véhicule, conducteur…"
             android:inputType="text"
             android:imeOptions="actionSearch"
-            android:singleLine="true" />
+            android:singleLine="true"
+            android:textColor="#1f2937"
+            android:textColorHint="#9ca3af" />
 
         <Button
             android:id="@+id/btnSearch"

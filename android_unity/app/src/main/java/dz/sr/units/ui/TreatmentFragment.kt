@@ -9,6 +9,7 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Spinner
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -16,12 +17,15 @@ import androidx.recyclerview.widget.RecyclerView
 import dz.sr.units.R
 import java.util.Calendar
 
-// 📋 Traitement : non traitées + filtres locaux (matricule, type, date) + « Traité » (file d'attente si hors-ligne).
-// Filtres locaux (pas serveur) : la file d'attente offline reste cohérente et ça marche sans réseau.
+// 📋 Traitement : véhicules à infractions (résumé groupé) ou infractions détaillées,
+// filtres locaux (matricule/type/date) + « Traité » (file d'attente si hors-ligne).
 class TreatmentFragment : Fragment() {
     private val vm: SharedViewModel by activityViewModels()
     private lateinit var adapter: InfractionAdapter
+    private lateinit var vehAdapter: VehiculeAdapter
+    private lateinit var rv: RecyclerView
 
+    private var modeVehicules = true
     private var fType = "all"
     private var fPeriode = "all"   // all | today | 7d | 30d
     private var fJour: String? = null   // yyyy-MM-dd précis (bouton 📅), prioritaire sur fPeriode
@@ -32,12 +36,14 @@ class TreatmentFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        val rv = view.findViewById<RecyclerView>(R.id.rvTreat)
+        rv = view.findViewById(R.id.rvTreat)
         val spType = view.findViewById<Spinner>(R.id.spType)
         val spPeriode = view.findViewById<Spinner>(R.id.spPeriode)
         val btnJour = view.findViewById<Button>(R.id.btnJour)
         val etPlaque = view.findViewById<EditText>(R.id.etPlaque)
         val btnPlaque = view.findViewById<Button>(R.id.btnPlaque)
+        val btnModeVeh = view.findViewById<Button>(R.id.btnModeVehicules)
+        val btnModeInf = view.findViewById<Button>(R.id.btnModeInfractions)
 
         val types = listOf("Tous types", "exces de vitesse", "zone interdite",
             "circulation à contresens", "conduite longue sans arrêt",
@@ -68,6 +74,9 @@ class TreatmentFragment : Fragment() {
         btnPlaque.setOnClickListener { fPlaque = etPlaque.text.toString().trim(); appliquer() }
         etPlaque.setOnEditorActionListener { _, _, _ -> fPlaque = etPlaque.text.toString().trim(); appliquer(); true }
 
+        btnModeVeh.setOnClickListener { modeVehicules = true; majBoutons(btnModeVeh, btnModeInf); appliquer() }
+        btnModeInf.setOnClickListener { modeVehicules = false; majBoutons(btnModeVeh, btnModeInf); appliquer() }
+
         rv.layoutManager = LinearLayoutManager(context)
         adapter = InfractionAdapter(
             emptyList(),
@@ -77,9 +86,34 @@ class TreatmentFragment : Fragment() {
             },
             onStatut = { x, s -> vm.setStatut(x.id, s) }
         )
-        rv.adapter = adapter
+        vehAdapter = VehiculeAdapter(
+            emptyList(),
+            onTap = { v ->
+                vm.selected.value = null
+                vm.chasserAuto.value = false
+                vm.selectedVehicule.value = v
+                (activity as? MainActivity)?.navigateTo(R.id.nav_map)
+            },
+            onChasser = { v ->
+                vm.selected.value = null
+                vm.chasserAuto.value = true
+                vm.selectedVehicule.value = v
+                (activity as? MainActivity)?.navigateTo(R.id.nav_map)
+            }
+        )
+        rv.adapter = vehAdapter
+        majBoutons(btnModeVeh, btnModeInf)
         vm.items.observe(viewLifecycleOwner) { appliquer() }
         pollWhileStarted(vm)
+    }
+
+    private fun majBoutons(btnVeh: Button, btnInf: Button) {
+        val on = ContextCompat.getColor(requireContext(), R.color.blue)
+        val off = ContextCompat.getColor(requireContext(), android.R.color.darker_gray)
+        btnVeh.alpha = if (modeVehicules) 1f else 0.55f
+        btnInf.alpha = if (!modeVehicules) 1f else 0.55f
+        btnVeh.setTextColor(if (modeVehicules) on else off)
+        btnInf.setTextColor(if (!modeVehicules) on else off)
     }
 
     private fun appliquer() {
@@ -105,7 +139,13 @@ class TreatmentFragment : Fragment() {
                 }
             }
             .sortedByDescending { it.recordedAt }
-        if (::adapter.isInitialized) adapter.submit(list)
+        if (modeVehicules) {
+            rv.adapter = vehAdapter
+            vehAdapter.submit(Vehicules.grouper(list))
+        } else {
+            rv.adapter = adapter
+            adapter.submit(list)
+        }
     }
 
     private fun parseIso(s: String): Long {

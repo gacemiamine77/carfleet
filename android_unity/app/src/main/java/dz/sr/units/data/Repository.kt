@@ -3,8 +3,11 @@ package dz.sr.units.data
 import androidx.room.withTransaction
 import dz.sr.units.api.ApiClient
 import dz.sr.units.api.Infraction
+import dz.sr.units.api.InterceptionAssignRequest
+import dz.sr.units.api.InterceptionResponse
 import dz.sr.units.api.PatchStatutRequest
 import dz.sr.units.api.Stats
+import dz.sr.units.api.TrajetResponse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -128,6 +131,20 @@ class Repository(
 
     suspend fun cachedUnites(): List<CachedUnite> = dao.unites()
 
+    /** Route empruntée par un véhicule (points GPS) — app chasse. */
+    suspend fun trajet(carId: String): TrajetResponse = ApiClient.service().trajet(auth, carId)
+
+    /** Unités mobiles proches de la cible + prédiction. */
+    suspend fun interception(carId: String): InterceptionResponse = ApiClient.service().interception(auth, carId)
+
+    /** Assigne l'interception d'une infraction à une unité (statut → notifie). */
+    suspend fun assignerInterception(infractionId: Int, uniteId: Int): Boolean = try {
+        ApiClient.service().assignerInterception(auth, InterceptionAssignRequest(infractionId, uniteId))
+        true
+    } catch (e: Exception) {
+        false
+    }
+
     /** Applique localement puis tente d'envoyer ; en cas d'échec réseau, met en file d'attente. */
     suspend fun setStatut(id: Int, statut: String): StatutResult {
         dao.setStatut(id, statut)
@@ -164,13 +181,16 @@ class Repository(
     }
 
     private fun Infraction.toCached() = CachedInfraction(
-        id, carId, immatriculation, conducteurNom, categorieVehicule, infraction,
-        vitesse, vitesseLimite, latitude, longitude, statut, recordedAt
+        id = id, carId = carId, immatriculation = immatriculation, conducteurNom = conducteurNom,
+        categorieVehicule = categorieVehicule, infraction = infraction,
+        vitesse = vitesse, vitesseLimite = vitesseLimite, latitude = latitude,
+        longitude = longitude, statut = statut, recordedAt = recordedAt
     )
 
     private fun CachedInfraction.toApi() = Infraction(
-        id, carId, immatriculation, conducteurNom, categorieVehicule, infraction,
-        null, null, null, vitesse, vitesseLimite, null, latitude, longitude,
-        null, null, statut, recordedAt
+        id = id, carId = carId, immatriculation = immatriculation, conducteurNom = conducteurNom,
+        categorieVehicule = categorieVehicule, infraction = infraction,
+        vitesse = vitesse, vitesseLimite = vitesseLimite,
+        latitude = latitude, longitude = longitude, statut = statut, recordedAt = recordedAt
     )
 }

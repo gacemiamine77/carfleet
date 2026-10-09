@@ -26,4 +26,15 @@
         android:layout_marginBottom="28dp"
         android:text="🧭 Naviguer"
         android:visibility="gone" />
+
+    <Button
+        android:id="@+id/btnChasser"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="28dp"
+        android:backgroundTint="#dc2626"
+        android:textColor="#ffffff"
+        android:text="🚨 Chasser"
+        android:visibility="gone" />
 </FrameLayout>

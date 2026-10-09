@@ -4,6 +4,29 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="6dp"
+        android:background="#eef2ff">
+
+        <Button
+            android:id="@+id/btnModeVehicules"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:text="🚗 Par véhicule" />
+
+        <Button
+            android:id="@+id/btnModeInfractions"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📋 Par infraction" />
+    </LinearLayout>
+
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -20,13 +43,15 @@
                 android:id="@+id/spType"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp" />
+                android:layout_marginEnd="6dp"
+                android:textColor="#1f2937" />
 
             <Spinner
                 android:id="@+id/spPeriode"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp" />
+                android:layout_marginEnd="6dp"
+                android:textColor="#1f2937" />
 
             <Button
                 android:id="@+id/btnJour"
@@ -50,7 +75,9 @@
             android:hint="Matricule / plaque…"
             android:inputType="text"
             android:imeOptions="actionSearch"
-            android:singleLine="true" />
+            android:singleLine="true"
+            android:textColor="#1f2937"
+            android:textColorHint="#9ca3af" />
 
         <Button
             android:id="@+id/btnPlaque"

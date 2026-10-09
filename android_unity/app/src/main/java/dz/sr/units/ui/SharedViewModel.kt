@@ -57,6 +57,12 @@ class SharedViewModel(app: Application) : AndroidViewModel(app) {
     /** Infraction à centrer sur la carte (consommée par MapFragment puis remise à null). */
     val selected = MutableLiveData<Infraction?>(null)
 
+    /** Véhicule à chasser : affiche sa route + bouton « Chasser » sur la carte. */
+    val selectedVehicule = MutableLiveData<Vehicule?>(null)
+
+    /** Ouvre automatiquement la boîte de chasse à l'arrivée sur la carte. */
+    val chasserAuto = MutableLiveData(false)
+
     /** Filtres V1 (Alertes). Toute modification relance un rafraîchissement. */
     data class FiltreUI(
         var periode: String = "all",
@@ -166,6 +172,16 @@ class SharedViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearMessage() { _message.value = null }
 
+    /** Route empruntée (points GPS) d'un véhicule — pour la carte. */
+    suspend fun trajet(carId: String) = repo.trajet(carId)
+
+    /** Unités mobiles proches de la cible (chasse). */
+    suspend fun interception(carId: String) = repo.interception(carId)
+
+    /** Assigne l'interception d'une infraction à une unité. */
+    suspend fun assignerInterception(infractionId: Int, uniteId: Int) =
+        repo.assignerInterception(infractionId, uniteId)
+
     /** Déconnexion : session + cache local + états en mémoire (aucune donnée ne survit à l'unité précédente). */
     fun logout() {
         manualJob?.cancel()
@@ -177,6 +193,8 @@ class SharedViewModel(app: Application) : AndroidViewModel(app) {
         _offline.value = false
         _authExpired.value = false
         selected.value = null
+        selectedVehicule.value = null
+        chasserAuto.value = false
         viewModelScope.launch { mutex.withLock { repo.clearAll() } }
     }
 }

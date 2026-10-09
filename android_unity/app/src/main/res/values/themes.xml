@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.SRUnits" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.SRUnits" parent="Theme.Material3.Light.NoActionBar">
         <item name="colorPrimary">@color/blue</item>
+        <item name="android:textColorPrimary">#1f2937</item>
+        <item name="android:textColorSecondary">#4b5563</item>
+        <item name="android:textColorHint">#9ca3af</item>
     </style>
 </resources>

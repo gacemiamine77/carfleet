@@ -116,6 +116,20 @@ export async function GET(req: NextRequest) {
   });
   filtered = avecCond as any;
 
+  // 2c. Infos véhicule (marque/modèle/couleur) — résumé « par véhicule » côté apps
+  try {
+    const { voitures } = await import("@/db/schema");
+    const carIds = [...new Set(filtered.map((r: any) => r.carId).filter(Boolean))];
+    if (carIds.length) {
+      const vs = await db.select({ carId: voitures.carId, marque: voitures.marque, modele: voitures.modele, couleur: voitures.couleur }).from(voitures);
+      const vmap = new Map(vs.map((v) => [v.carId, v]));
+      filtered = filtered.map((r: any) => {
+        const v: any = vmap.get(r.carId);
+        return { ...r, marque: v?.marque || null, modele: v?.modele || null, couleur: v?.couleur || null };
+      });
+    }
+  } catch {}
+
   // 3. Stats pour le territoire filtré
   const parType: Record<string, number> = {};
   const parCategorie: Record<string, number> = {};

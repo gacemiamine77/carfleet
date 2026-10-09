@@ -101,6 +101,7 @@ class AlertsFragment : Fragment() {
 
         rv.layoutManager = LinearLayoutManager(context)
         val adapter = InfractionAdapter(emptyList(), onTap = {
+            vm.selectedVehicule.value = null
             vm.selected.value = it
             (activity as? MainActivity)?.navigateTo(R.id.nav_map)
         })

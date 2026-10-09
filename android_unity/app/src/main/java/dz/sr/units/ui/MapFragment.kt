@@ -7,25 +7,36 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import dz.sr.units.R
 import dz.sr.units.api.Infraction
+import dz.sr.units.api.TrajetResponse
 import dz.sr.units.data.CachedUnite
+import kotlinx.coroutines.launch
 import org.osmdroid.tileprovider.tilesource.XYTileSource
+import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Overlay
+import org.osmdroid.views.overlay.Polyline
 
 // 🗺️ Carte : infractions du territoire + unités (cache de tuiles osmdroid = hors-ligne partiel)
+// + route empruntée d'un véhicule poursuivi + bouton « Chasser » (alerte unités proches).
 class MapFragment : Fragment() {
     private val vm: SharedViewModel by activityViewModels()
     private var map: MapView? = null
     private val markers = mutableMapOf<Int, Marker>()
     private val uniteMarkers = mutableListOf<Marker>()
+    private val routeOverlays = mutableListOf<Overlay>()
     private var lastSignature: List<Pair<Int, String>>? = null
     private var cible: Infraction? = null
+    private var chasseCarId: String? = null
+    private var chasseVehicule: Vehicule? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return inflater.inflate(R.layout.fragment_map, container, false)
@@ -50,17 +61,42 @@ class MapFragment : Fragment() {
         mv.controller.setCenter(GeoPoint(c[0], c[1]))
 
         val btnNav = view.findViewById<Button>(R.id.btnNav)
+        val btnChasser = view.findViewById<Button>(R.id.btnChasser)
         btnNav.setOnClickListener { naviguer() }
+        btnChasser.setOnClickListener { ouvrirChasse() }
+
         vm.items.observe(viewLifecycleOwner) { drawInfractions() }
         vm.unites.observe(viewLifecycleOwner) { drawUnites(it) }
         vm.selected.observe(viewLifecycleOwner) { sel ->
             if (sel != null) {
+                vm.selectedVehicule.value = null
                 cible = sel
                 btnNav.visibility = View.VISIBLE
+                btnChasser.visibility = View.GONE
+                effacerRoute()
                 map?.controller?.setZoom(15.0)
                 map?.controller?.setCenter(GeoPoint(sel.latitude, sel.longitude))
                 markers[sel.id]?.showInfoWindow()
-                vm.selected.value = null   // consommé : ne recentre plus aux prochains retours sur l'onglet
+            }
+        }
+        vm.selectedVehicule.observe(viewLifecycleOwner) { v ->
+            if (v != null) {
+                vm.selected.value = null
+                cible = null
+                chasseCarId = v.carId
+                chasseVehicule = v
+                btnNav.visibility = View.GONE
+                btnChasser.visibility = View.VISIBLE
+                map?.controller?.setZoom(14.0)
+                map?.controller?.setCenter(GeoPoint(v.lat, v.lon))
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val tr = try { vm.trajet(v.carId) } catch (e: Exception) { null }
+                    if (tr != null && tr.points.isNotEmpty()) dessinerRoute(tr)
+                }
+                if (vm.chasserAuto.value == true) {
+                    vm.chasserAuto.value = false
+                    ouvrirChasse()
+                }
             }
         }
         pollWhileStarted(vm)
@@ -81,6 +117,7 @@ class MapFragment : Fragment() {
             m.position = GeoPoint(x.latitude, x.longitude)
             m.title = "${x.infraction} — ${x.immatriculation ?: x.carId ?: "—"}"
             m.snippet = "${x.recordedAt.take(16).replace("T", " ")} · ${x.vitesse?.toInt() ?: 0} km/h · ${x.statut}"
+            m.icon = ContextCompat.getDrawable(requireContext(), Gravite.icone(x))
             m.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             mv.overlays.add(m)
             markers[x.id] = m
@@ -106,6 +143,72 @@ class MapFragment : Fragment() {
         mv.invalidate()
     }
 
+    /** Trace la route empruntée (polyline rouge + départ/arrivée) et cadre dessus. */
+    private fun dessinerRoute(tr: TrajetResponse) {
+        val mv = map ?: return
+        effacerRoute()
+        val pts = tr.points.filter { it.lat != 0.0 || it.lon != 0.0 }.map { GeoPoint(it.lat, it.lon) }
+        if (pts.size >= 2) {
+            val line = Polyline(mv)
+            line.setPoints(pts)
+            line.outlinePaint.color = 0xFFDC2626.toInt()
+            line.outlinePaint.strokeWidth = 8f
+            line.title = "Trajet ${tr.immatriculation ?: tr.carId}"
+            mv.overlays.add(line)
+            routeOverlays.add(line)
+        }
+        if (pts.isNotEmpty()) {
+            val start = Marker(mv)
+            start.position = pts.first()
+            start.title = "Départ"
+            start.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            mv.overlays.add(start); routeOverlays.add(start)
+
+            val end = Marker(mv)
+            end.position = pts.last()
+            end.title = "Position actuelle"
+            end.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            mv.overlays.add(end); routeOverlays.add(end)
+
+            try { mv.zoomToBoundingBox(BoundingBox.fromGeoPoints(pts), true, 60) } catch (_: Exception) {}
+        }
+        mv.invalidate()
+    }
+
+    private fun effacerRoute() {
+        val mv = map ?: return
+        routeOverlays.forEach { mv.overlays.remove(it) }
+        routeOverlays.clear()
+    }
+
+    /** Récupère les unités mobiles proches et propose de les alerter. */
+    private fun ouvrirChasse() {
+        val carId = chasseCarId ?: return
+        val v = chasseVehicule
+        val act = activity ?: return
+        viewLifecycleOwner.lifecycleScope.launch {
+            val resp = try { vm.interception(carId) } catch (e: Exception) { null }
+            if (resp == null) { Toast.makeText(context, "Chasse indisponible (réseau)", Toast.LENGTH_LONG).show(); return@launch }
+            if (resp.error != null) { Toast.makeText(context, resp.error, Toast.LENGTH_LONG).show(); return@launch }
+            if (resp.unites.isEmpty()) { Toast.makeText(context, "Aucune unité mobile à proximité", Toast.LENGTH_LONG).show(); return@launch }
+            val labels = resp.unites.map { u ->
+                "${u.nom ?: u.code} · ${u.distKm ?: "?"} km · ETA ${u.etaMin ?: "?"} min"
+            }.toTypedArray()
+            android.app.AlertDialog.Builder(act)
+                .setTitle("🚨 Chasser — ${v?.libelle ?: carId}")
+                .setItems(labels) { _, which ->
+                    val u = resp.unites[which]
+                    val infId = v?.derniereInfractionId ?: 0
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        val ok = if (infId > 0) vm.assignerInterception(infId, u.id) else false
+                        Toast.makeText(context, if (ok) "🚨 Unité ${u.code} alertée" else "Échec de l'alerte", Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNegativeButton("Annuler", null)
+                .show()
+        }
+    }
+
     /** Ouvre l'itinéraire vers le point (Google Maps/Waze si présents, sinon carte générique). */
     private fun naviguer() {
         val c = cible ?: return
@@ -129,6 +232,7 @@ class MapFragment : Fragment() {
         super.onDestroyView()
         markers.clear()
         uniteMarkers.clear()
+        routeOverlays.clear()
         map?.onDetach()
         map = null
     }

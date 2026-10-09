@@ -32,6 +32,9 @@ data class Infraction(
     val immatriculation: String? = null,
     val conducteurNom: String? = null,
     val categorieVehicule: String? = null,
+    val marque: String? = null,
+    val modele: String? = null,
+    val couleur: String? = null,
     val infraction: String = "",
     val restriction: String? = null,
     val roadName: String? = null,
@@ -73,3 +76,65 @@ data class UnitFeature(
 data class UnitGeometry(val coordinates: List<Double>?)
 
 data class UnitsGeoJson(val features: List<UnitFeature> = emptyList())
+
+// ─── Route empruntée (trajet) ───────────────────────────────────
+data class TrajetPoint(
+    val lat: Double = 0.0,
+    val lon: Double = 0.0,
+    val vitesse: Double? = null,
+    val cap: Double? = null,
+    val recordedAt: String? = null
+)
+
+data class TrajetResponse(
+    val ok: Boolean = false,
+    val carId: String? = null,
+    val immatriculation: String? = null,
+    val marque: String? = null,
+    val modele: String? = null,
+    val couleur: String? = null,
+    val total: Int = 0,
+    val points: List<TrajetPoint> = emptyList(),
+    val error: String? = null
+)
+
+// ─── Interception / chasse ──────────────────────────────────────
+data class InterceptionUnite(
+    val id: Int = 0,
+    val code: String? = null,
+    val nom: String? = null,
+    val type: String? = null,
+    val moyen: String? = null,
+    val telephone: String? = null,
+    val distKm: Double? = null,
+    val etaMin: Int? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
+)
+
+data class InterceptionCible(
+    val carId: String? = null,
+    val immatriculation: String? = null,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val vitesse: Double = 0.0,
+    val recordedAt: String? = null
+)
+
+data class InterceptionPrediction(
+    val lat: Double = 0.0,
+    val lon: Double = 0.0,
+    val methode: String? = null,
+    val horizonMin: Int = 5
+)
+
+data class InterceptionResponse(
+    val cible: InterceptionCible? = null,
+    val prediction: InterceptionPrediction? = null,
+    val wilaya: String? = null,
+    val codeWilaya: String? = null,
+    val unites: List<InterceptionUnite> = emptyList(),
+    val error: String? = null
+)
+
+data class InterceptionAssignRequest(val infractionId: Int, val uniteId: Int)
