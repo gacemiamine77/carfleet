@@ -197,8 +197,16 @@ export async function POST(req: NextRequest) {
           const hasCustomItin = (c as any).origin && (c as any).destination;
           let existing = sim.cars.find(cc => cc.voiture.carId === carId);
           if (!existing) {
+            // Propriétaire réel si véhicule déjà inscrit (serial), sinon fallback EXT
+            let proprioForSim: any = { id: 0, nin: "EXT", type: "physique", nom: extPropNom || c.nom, prenom: extPropPrenom || c.prenom, telephone: extPropTel || c.telephone || "", adresse: "", commune: extPropWilaya || "Externe", wilaya: extPropWilaya || "Externe", codeWilaya: "00" };
+            if (serialVoiture) {
+              try {
+                const pr = await db.select().from(proprietaires).where(eq(proprietaires.id, (serialVoiture as any).proprietaireId)).limit(1);
+                if (pr.length) proprioForSim = pr[0] as any;
+              } catch {}
+            }
             const newCar: any = {
-              voiture: { id: voitureId, carId, proprietaire: { id: 0, nin: "EXT", type: "physique", telephone: extPropTel || "", adresse: "", commune: extPropWilaya || "Externe", wilaya: extPropWilaya || "Externe", codeWilaya: "00" } as any, immatriculation: extImmat || `EXT-${carId}`, marque: extMarque || "Externe", modele: extModele || "Sim", couleur: extCouleur || "Gris", annee: 2024, mapColor: "#ff6b35", categorieVehicule: extCat || "leger", hauteur: extH ? Number(extH) : 1.5, largeur: extL ? Number(extL) : 1.8, poids: extPoids ? Number(extPoids) : 1.2, convoiSpecial: !!extConvoi } as any,
+              voiture: { id: voitureId, carId, proprietaire: proprioForSim as any, immatriculation: extImmat || `EXT-${carId}`, marque: extMarque || "Externe", modele: extModele || "Sim", couleur: extCouleur || "Gris", annee: 2024, mapColor: "#ff6b35", categorieVehicule: extCat || "leger", hauteur: extH ? Number(extH) : 1.5, largeur: extL ? Number(extL) : 1.8, poids: extPoids ? Number(extPoids) : 1.2, convoiSpecial: !!extConvoi } as any,
               conducteurActuel: { id: 0, nin: `COND-${carId}`, nom: extCondNom || "Externe", prenom: extCondPrenom || carId, telephone: extCondTel || "", numeroPermis: extCondPermis || "EXT", commune: "Externe", wilaya: "Externe", profil: "normal", speed_factor: 1, a_max: 1.5, b_comfort: 2.5, reaction_time: 1 } as any,
               itineraireActuel: { id: `ext-${carId}`, voitureId, conducteur: null as any, villeDepart: extVilleDep, villeArrivee: extVilleArr, debutAt: new Date(), distanceKm: 0, vitesseMoyenne: 0, vitesseMax: 0, nombreArrets: 0, statut: "en_cours" } as any,
               lat, lon, speed: Number(c.speed ?? 30), acceleration: 0, heading: Number(c.heading ?? 0),

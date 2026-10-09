@@ -178,6 +178,10 @@ class TrackingService : Service(), SensorEventListener {
         }.format(Date())
         val speedKmh = if (loc.hasSpeed()) loc.speed * 3.6 else 0.0
         val heading = if (loc.hasBearing()) loc.bearing.toDouble() else lastHeading(loc)
+        // Propriétaire = compte (obligatoire), conducteur = chauffeur désigné si existe sinon propriétaire
+        val cNom = if (session.hasDriver) session.drvNom else session.nom
+        val cPrenom = if (session.hasDriver) session.drvPrenom else session.prenom
+        val cTel = if (session.hasDriver) session.drvTel else session.tel
         return mapOf(
             "vehicle_id" to session.carId,
             "serial" to session.serial,
@@ -192,13 +196,13 @@ class TrackingService : Service(), SensorEventListener {
             "marque" to session.marque,
             "modele" to session.modele,
             "immatriculation" to session.immat,
-            // Aliases requis par /api/external/track (rejet si manquant)
+            // Aliases requis par /api/external/track
             "proprietaireNom" to session.nom,
             "proprietairePrenom" to session.prenom,
             "proprietaireTel" to session.tel,
-            "conducteurNom" to session.nom,
-            "conducteurPrenom" to session.prenom,
-            "conducteurTel" to session.tel,
+            "conducteurNom" to cNom,
+            "conducteurPrenom" to cPrenom,
+            "conducteurTel" to cTel,
             "ax" to ax, "ay" to ay, "az" to az,
             "gx" to gx, "gy" to gy, "gz" to gz
         )

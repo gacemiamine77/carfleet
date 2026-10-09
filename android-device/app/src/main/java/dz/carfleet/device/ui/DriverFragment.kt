@@ -91,6 +91,7 @@ class DriverFragment : Fragment() {
                             "numeroPermis" to view.findViewById<EditText>(R.id.etPermis2).text.toString().trim().ifBlank { null },
                             "wilaya" to wil2.substringAfter("- ")
                         ))
+                        session.saveDriver(nom, prenom, tel, view.findViewById<EditText>(R.id.etPermis2).text.toString().trim().ifBlank { null })
                         editing = false
                         view.findViewById<LinearLayout>(R.id.editCh).visibility = View.GONE
                         view.findViewById<Button>(R.id.btnEditCh).text = "Modifier"
@@ -138,6 +139,7 @@ class DriverFragment : Fragment() {
                             etPermis.text.toString().trim().ifBlank { null },
                             wil.substringAfter("- "))
                     )
+                    session.saveDriver(nom, prenom, tel, etPermis.text.toString().trim().ifBlank { null })
                     view.findViewById<TextView>(R.id.tvErr).text = ""
                     Toast.makeText(context, "$prenom $nom désigné", Toast.LENGTH_LONG).show()
                     val res = ApiClient.service().myVehicles(session.authHeader)

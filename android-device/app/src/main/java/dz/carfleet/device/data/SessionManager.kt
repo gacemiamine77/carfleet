@@ -19,6 +19,7 @@ class SessionManager(ctx: Context) {
             .putInt("age", age)
             .putString("tel", telephone)
             .remove("carId").remove("serial").remove("marque").remove("modele").remove("immat")
+            .remove("drvNom").remove("drvPrenom").remove("drvTel").remove("drvPermis")
             .remove("interval").remove("tracking")
             .apply()
     }
@@ -41,6 +42,15 @@ class SessionManager(ctx: Context) {
             .putString("immat", immatriculation)
             .apply()
     }
+
+    fun saveDriver(nom: String, prenom: String, tel: String, permis: String? = null) {
+        prefs.edit().putString("drvNom", nom).putString("drvPrenom", prenom).putString("drvTel", tel).putString("drvPermis", permis ?: "").apply()
+    }
+    fun clearDriver() { prefs.edit().remove("drvNom").remove("drvPrenom").remove("drvTel").remove("drvPermis").apply() }
+    val drvNom: String get() = prefs.getString("drvNom", "") ?: ""
+    val drvPrenom: String get() = prefs.getString("drvPrenom", "") ?: ""
+    val drvTel: String get() = prefs.getString("drvTel", "") ?: ""
+    val hasDriver: Boolean get() = drvNom.isNotBlank() && drvPrenom.isNotBlank()
 
     fun setIntervalSec(s: Int) = prefs.edit().putInt("interval", s).apply()
     fun setTracking(on: Boolean) = prefs.edit().putBoolean("tracking", on).apply()

@@ -50,6 +50,9 @@ class VehicleFragment : Fragment() {
                     if (!session.hasVehicle || session.carId != mine!!.carId) {
                         session.saveVehicle(dz.carfleet.device.api.VehiculeInfo(mine!!.id, mine!!.carId, mine!!.immatriculation, null), mine!!.marque ?: session.marque, mine!!.modele ?: session.modele, mine!!.immatriculation)
                     }
+                    // sync chauffeur aussi pour que TrackingService envoie le bon conducteur
+                    mine!!.chauffeur?.let { ch -> session.saveDriver(ch.nom ?: "", ch.prenom ?: "", ch.telephone ?: "", ch.numeroPermis) }
+                        ?: session.clearDriver()
                     showFiche(view, session)
                 } else {
                     // serveur vide mais local a un vieux véhicule -> purge
@@ -95,10 +98,13 @@ class VehicleFragment : Fragment() {
     private fun majFiche(view: View) {
         val v = mine ?: return
         setupEditSpinners(view)
+        val session = SessionManager(requireContext())
+        val owner = "${session.prenom} ${session.nom}".trim().ifEmpty { "—" }
         view.findViewById<TextView>(R.id.tvFiche).text =
+            "👤 Propriétaire (compte) : $owner (${session.username})\n" +
             "🚗 ${v.marque ?: ""} ${v.modele ?: ""}\nMatricule : ${v.immatriculation}\n" +
             "${catLabel(v.categorieVehicule)} · ${v.couleur ?: "—"}\ncarId : ${v.carId}\n" +
-            (v.chauffeur?.let { "🧑‍✈️ ${it.prenom} ${it.nom} (${it.telephone ?: "—"})" } ?: "Chauffeur : non désigné")
+            (v.chauffeur?.let { "🧑‍✈️ Chauffeur : ${it.prenom} ${it.nom} (${it.telephone ?: "—"})" } ?: "Chauffeur : non désigné (ira comme propriétaire)")
     }
 
     private fun sauver(view: View, session: SessionManager) {
