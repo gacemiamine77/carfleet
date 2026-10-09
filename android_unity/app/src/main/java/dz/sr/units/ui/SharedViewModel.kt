@@ -176,7 +176,8 @@ class SharedViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun trajet(carId: String) = repo.trajet(carId)
 
     /** Unités mobiles proches de la cible (chasse). */
-    suspend fun interception(carId: String) = repo.interception(carId)
+    suspend fun interception(carId: String, infractionId: Int? = null) =
+        repo.interception(carId, infractionId)
 
     /** Assigne l'interception d'une infraction à une unité. */
     suspend fun assignerInterception(infractionId: Int, uniteId: Int) =

@@ -135,7 +135,8 @@ class Repository(
     suspend fun trajet(carId: String): TrajetResponse = ApiClient.service().trajet(auth, carId)
 
     /** Unités mobiles proches de la cible + prédiction. */
-    suspend fun interception(carId: String): InterceptionResponse = ApiClient.service().interception(auth, carId)
+    suspend fun interception(carId: String, infractionId: Int? = null): InterceptionResponse =
+        ApiClient.service().interception(auth, carId, infractionId)
 
     /** Assigne l'interception d'une infraction à une unité (statut → notifie). */
     suspend fun assignerInterception(infractionId: Int, uniteId: Int): Boolean = try {

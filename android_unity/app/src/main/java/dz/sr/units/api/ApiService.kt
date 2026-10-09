@@ -52,7 +52,8 @@ interface ApiService {
     @GET("api/unites/interception")
     suspend fun interception(
         @Header("Authorization") auth: String,
-        @Query("carId") carId: String
+        @Query("carId") carId: String,
+        @Query("infractionId") infractionId: Int? = null
     ): InterceptionResponse
 
     @PATCH("api/unites/interception")

@@ -16,8 +16,10 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import com.google.gson.Gson
 import dz.sr.units.R
 import dz.sr.units.api.Infraction
+import dz.sr.units.api.InterceptionResponse
 import dz.sr.units.api.TrajetResponse
 import dz.sr.units.data.CachedUnite
 import kotlinx.coroutines.launch
@@ -28,6 +30,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polyline
+import retrofit2.HttpException
 
 // 🗺️ Carte : infractions du territoire (marqueurs colorés par gravité) + unités (icône par type)
 // + fond de carte multiple + couches activables (Tuiles/Unités/Trajet) + légende + bouton « Chasser ».
@@ -41,6 +44,7 @@ class MapFragment : Fragment() {
     private var cible: Infraction? = null
     private var chasseCarId: String? = null
     private var chasseVehicule: Vehicule? = null
+    private var chasseLastError: String? = null
 
     private var visInfractions = true
     private var visUnites = true
@@ -257,7 +261,21 @@ class MapFragment : Fragment() {
         val v = chasseVehicule
         val act = activity ?: return
         viewLifecycleOwner.lifecycleScope.launch {
-            val resp = try { vm.interception(carId) } catch (e: Exception) { null }
+            val infId = v?.derniereInfractionId ?: 0
+            chasseLastError = null
+            val resp = try { vm.interception(carId, infId.takeIf { it > 0 }) }
+            catch (e: HttpException) {
+                chasseLastError = try {
+                    Gson().fromJson(e.response()?.errorBody()?.string(), InterceptionResponse::class.java)?.error
+                } catch (_: Exception) { null }
+                null
+            }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { null }
+            if (resp == null && chasseLastError != null) {
+                Toast.makeText(context, chasseLastError, Toast.LENGTH_LONG).show()
+                return@launch
+            }
             if (resp == null) {
                 Toast.makeText(context, "Chasse impossible — serveur/session injoignable, réessayez", Toast.LENGTH_LONG).show()
                 return@launch
