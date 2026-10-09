@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Par défaut : HTTPS obligatoire -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- RÉSEAU DE TEST UNIQUEMENT : serveur local en HTTP.
+         Supprimer ce bloc en production (serveur en HTTPS). -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.0.2</domain>
+    </domain-config>
+</network-security-config>
