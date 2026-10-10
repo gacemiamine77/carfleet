@@ -6,66 +6,292 @@
   <title>Fleet Platform — Suivi flotte et véhicules privés</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body{font-family:system-ui,sans-serif;margin:0;background:#eef2f7;color:#0f172a}
-    header{background:#0f3d2e;color:#fff;padding:14px 18px}
-    main{max-width:1100px;margin:auto;padding:14px}
-    .card{background:#fff;border-radius:12px;padding:12px;margin-bottom:12px;box-shadow:0 1px 4px #0001}
-    input,select,button,textarea{padding:9px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px}
-    button{background:#0f3d2e;color:#fff;font-weight:700;cursor:pointer;border:0}
-    button.ghost{background:#fff;color:#0f3d2e;border:1px solid #0f3d2e}
-    .row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:150px}
-    #map{height:55vh;min-height:320px;border-radius:12px}
+    :root{--vert:#0f3d2e;--fond:#eef2f7;--carte:#fff;--txt:#0f172a;--mut:#64748b;--rouge:#b91c1c;--orange:#d97706;--bleu:#1d4ed8}
+    *{box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:var(--fond);color:var(--txt)}
+    header{background:var(--vert);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30}
+    header h1{margin:0;font-size:18px}header small{color:#bbf7d0;font-size:12px}
+    header nav{display:flex;gap:8px;align-items:center}
+    header nav button{background:#ffffff22;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer;font-size:13px}
+    main{max-width:1100px;margin:auto;padding:14px 14px 60px}
+    .card{background:var(--carte);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px #0001}
+    .card h2{margin:0 0 10px;font-size:16px}.card h3{margin:12px 0 8px;font-size:14px}
+    label{font-size:12px;color:var(--mut);display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+    input,select,button,textarea{padding:9px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px;width:100%;background:#fff}
+    button{background:var(--vert);color:#fff;font-weight:700;cursor:pointer;border:0;width:auto}
+    button.ghost{background:#fff;color:var(--vert);border:1px solid var(--vert)}
+    button.danger{background:var(--rouge)}
+    button:disabled{opacity:.5}
+    .row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}
+    .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+    .tabs button.on{background:var(--vert);color:#fff}
+    #map,#zmap{height:55vh;min-height:320px;border-radius:12px;z-index:0}
     table{width:100%;border-collapse:collapse;font-size:12px}
     td,th{padding:7px;border-bottom:1px solid #e2e8f0;text-align:left}
+    th{color:var(--mut)}
     .hidden{display:none!important}
-    .stolen{color:#b91c1c;font-weight:700}
+    .stolen{color:var(--rouge);font-weight:700}
+    .dot{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:5px}
+    .d-move{background:#16a34a}.d-stop{background:#f59e0b}.d-off{background:#94a3b8}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+    .p-actif{background:#dcfce7;color:#166534}.p-att{background:#fef3c7;color:#92400e}.p-bloq{background:#fee2e2;color:#991b1b}
+    .radio-card{display:flex;gap:8px}.radio-card label{flex:1;border:2px solid #cbd5e1;border-radius:10px;padding:10px;cursor:pointer;font-size:14px;color:var(--txt)}
+    .radio-card input{width:auto}
+    .msg{font-size:13px;min-height:18px}
+    .err{color:var(--rouge)}.ok{color:#166534}
+    @media(max-width:600px){#map,#zmap{height:48vh}}
   </style>
 </head>
 <body>
 <header>
-  <h1 style="margin:0;font-size:18px">🚚 Fleet Platform</h1>
-  <div style="font-size:12px;color:#bbf7d0">Flotte entreprise / véhicule privé — base séparée de la Sécurité publique</div>
+  <div><h1>🚚 Fleet Platform</h1><small>Base séparée de la Sécurité publique</small></div>
+  <nav>
+    <span id="navUser" style="font-size:12px"></span>
+    <button id="navHome">Accueil</button>
+    <button id="navAdmin">Admin</button>
+    <button id="navLogout" class="hidden">Déconnexion</button>
+  </nav>
 </header>
 <main>
-  <section class="card" id="authCard">
-    <h2 style="margin-top:0">Compte flotte</h2>
-    <div class="row">
-      <label>Utilisateur<input id="username" autocomplete="username" /></label>
-      <label>Mot de passe<input id="password" type="password" autocomplete="current-password" /></label>
-      <label>Téléphone<input id="telephone" autocomplete="tel" /></label>
+  <!-- ACCUEIL -->
+  <section class="card" id="view-home">
+    <h2>Suivi de véhicules pour particuliers et entreprises</h2>
+    <p style="font-size:13px;color:var(--mut)">Choisissez votre type de compte, puis connectez-vous ou inscrivez-vous. Le suivi temps réel s’active après validation de l’inscription et confirmation du paiement.</p>
+    <div class="radio-card">
+      <label><input type="radio" name="typeCompte" value="particulier" checked /> <b>Particulier</b><br /><small>Jusqu’à 3 véhicules personnels</small></label>
+      <label><input type="radio" name="typeCompte" value="entreprise" /> <b>Entreprise</b><br /><small>Flotte, camions et engins</small></label>
     </div>
-    <div class="row" style="margin-top:8px">
-      <button id="login">Se connecter</button>
-      <button id="register" class="ghost">Créer un compte</button>
-      <button id="logout" class="ghost hidden">Déconnexion</button>
-    </div>
-    <p id="authMsg" style="font-size:13px"></p>
-  </section>
-
-  <section class="card hidden" id="fleetCard">
-    <h2 style="margin-top:0">Véhicules — <span id="count">0</span></h2>
-    <div class="row">
-      <label>Immatriculation<input id="immat" /></label>
-      <label>Marque<input id="marque" /></label>
-      <label>Modèle<input id="modele" /></label>
-      <label>Couleur<input id="couleur" /></label>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <button id="addVehicle">Ajouter</button>
-      <button id="reload" class="ghost">Actualiser</button>
-    </div>
-    <div style="overflow:auto;margin-top:8px">
-      <table><thead><tr><th>Véhicule</th><th>Chauffeur</th><th>Position</th><th>Antivol</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+    <div class="row" style="margin-top:10px">
+      <button id="btnGoLogin">Connexion</button>
+      <button id="btnGoRegister" class="ghost">Inscription</button>
     </div>
   </section>
 
-  <section class="card hidden" id="mapCard">
-    <h2 style="margin-top:0">Carte — <span id="mapTitle">temps réel</span></h2>
-    <div id="map"></div>
-    <div class="row" style="margin-top:8px">
-      <button id="showLive" class="ghost">Temps réel</button>
-      <button id="showHistory" class="ghost">Historique 24 h</button>
+  <!-- AUTH -->
+  <section class="card hidden" id="view-auth">
+    <h2 id="authTitle">Connexion</h2>
+    <div id="loginBox">
+      <div class="row">
+        <label>Utilisateur<input id="username" autocomplete="username" /></label>
+        <label>Mot de passe<input id="password" type="password" autocomplete="current-password" /></label>
+      </div>
+      <button id="btnLogin">Se connecter</button>
     </div>
+    <div id="registerBox" class="hidden">
+      <div class="row">
+        <label>Type de compte<select id="regType"><option value="particulier">Particulier</option><option value="entreprise">Entreprise</option></select></label>
+        <label>Utilisateur<input id="regUser" autocomplete="username" /></label>
+        <label>Mot de passe (6+)<input id="regPass" type="password" autocomplete="new-password" /></label>
+      </div>
+      <div id="regParticulier">
+        <div class="row">
+          <label>Nom<input id="regNom" /></label>
+          <label>Prénom<input id="regPrenom" /></label>
+          <label>Téléphone<input id="regTel" autocomplete="tel" /></label>
+          <label>Wilaya<input id="regWilaya" /></label>
+        </div>
+      </div>
+      <div id="regEntreprise" class="hidden">
+        <div class="row">
+          <label>Raison sociale*<input id="regRaison" /></label>
+          <label>Nom du contact<input id="regCNom" /></label>
+          <label>Prénom du contact<input id="regCPrenom" /></label>
+          <label>Téléphone*<input id="regCTel" /></label>
+          <label>Email<input id="regEmail" type="email" /></label>
+          <label>Wilaya<input id="regCWilaya" /></label>
+        </div>
+      </div>
+      <div class="row">
+        <label>Forfait<select id="regPlan"><option value="">— Choisir plus tard —</option></select></label>
+        <label>Paiement<select id="regMethode"><option value="virement">Virement bancaire</option><option value="especes">Espèces</option><option value="autre">Autre</option></select></label>
+      </div>
+      <button id="btnRegister">Créer mon compte</button>
+      <p style="font-size:12px;color:var(--mut)">Le compte est créé en statut « inscription reçue ». Le suivi s’active après choix du forfait, paiement et validation.</p>
+    </div>
+    <p class="msg" id="authMsg"></p>
+  </section>
+
+  <!-- APP -->
+  <section id="view-app" class="hidden">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h2 style="margin:0">Tableau de bord — <span id="qui"></span></h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="statutCompte"></span>
+          <button id="btnNotif" class="ghost">🔔 <span id="notifN">0</span></button>
+        </div>
+      </div>
+      <div id="statutDetail" style="font-size:12px;color:var(--mut);margin-top:6px"></div>
+      <div id="notifList" class="hidden" style="margin-top:8px;font-size:12px"></div>
+    </div>
+    <div class="tabs" id="appTabs">
+      <button data-v="vehicules" class="on ghost">🚗 Véhicules</button>
+      <button data-v="carte" class="ghost">🗺️ Carte</button>
+      <button data-v="historique" class="ghost">🕘 Historique</button>
+      <button data-v="zones" class="ghost">📍 Zones</button>
+      <button data-v="profil" class="ghost">👤 Profil</button>
+    </div>
+
+    <div id="v-vehicules">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h2 style="margin:0">Véhicules — <span id="count">0</span></h2>
+          <div><button id="btnAddVeh">＋ Ajouter</button> <button id="btnReload" class="ghost">Actualiser</button></div>
+        </div>
+        <div style="overflow:auto;margin-top:8px">
+          <table><thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Antivol</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+        </div>
+      </div>
+      <div class="card hidden" id="vehFormCard">
+        <h2 id="vehFormTitle">Nouveau véhicule</h2>
+        <input type="hidden" id="vehId" />
+        <div class="row">
+          <label>Catégorie<select id="vehCat"><option value="leger">Voiture</option><option value="lourd">Camion</option><option value="transport">Transport</option><option value="engin">Engin de chantier</option><option value="moto">Moto</option></select></label>
+          <label>Marque<select id="vehMarque"></select></label>
+          <label>Modèle<select id="vehModele"></select></label>
+          <label>Année<input id="vehAnnee" type="number" min="1980" max="2100" /></label>
+        </div>
+        <div class="row">
+          <label>Couleur<input id="vehCouleur" /></label>
+          <label>Immatriculation*<input id="vehImmat" /></label>
+          <label>VIN (17)<input id="vehVin" maxlength="17" /></label>
+          <label>Dispositif (auto)<input id="vehSerial" readonly /></label>
+        </div>
+        <div class="row">
+          <label>Longueur (m)<input id="vehLong" type="number" step="0.1" /></label>
+          <label>Largeur (m)<input id="vehLarg" type="number" step="0.1" /></label>
+          <label>Hauteur (m)<input id="vehHaut" type="number" step="0.1" /></label>
+        </div>
+        <div class="row">
+          <label>Tél. principal<input id="vehTel1" /></label>
+          <label>Tél. secondaire<input id="vehTel2" /></label>
+          <label>Nom/code interne (entreprise)<input id="vehNomInt" /></label>
+        </div>
+        <div class="row">
+          <label>Service / département<input id="vehService" /></label>
+          <label>Responsable<input id="vehResp" /></label>
+        </div>
+        <div class="row">
+          <button id="btnSaveVeh">Enregistrer</button>
+          <button id="btnCancelVeh" class="ghost">Annuler</button>
+          <button id="btnDelVeh" class="danger hidden">Supprimer</button>
+        </div>
+        <p class="msg" id="vehMsg"></p>
+      </div>
+    </div>
+
+    <div id="v-carte" class="hidden">
+      <div class="card"><div id="map"></div><div style="font-size:11px;color:var(--mut);margin-top:6px">Actualisation toutes les 10 s · 🟢 en mouvement · 🟠 à l’arrêt · ⚪ hors ligne</div></div>
+    </div>
+
+    <div id="v-historique" class="hidden">
+      <div class="card">
+        <h2>Historique des déplacements</h2>
+        <div class="row">
+          <label>Véhicule<select id="hVeh"></select></label>
+          <label>Du<input id="hDebut" type="datetime-local" /></label>
+          <label>Au<input id="hFin" type="datetime-local" /></label>
+        </div>
+        <div class="row" style="margin-top:6px"><button id="btnHist">Charger</button></div>
+        <div id="hInfo" style="font-size:12px;margin-top:6px"></div>
+      </div>
+    </div>
+
+    <div id="v-zones" class="hidden">
+      <div class="card hidden" id="zoneNoPlan">
+        <p style="font-size:13px">Le géorepérage n’est pas inclus dans votre forfait actuel.</p>
+      </div>
+      <div class="card">
+        <h2>Zones de géorepérage</h2>
+        <div class="row">
+          <label>Nom*<input id="zNom" /></label>
+          <label>Type<select id="zType"><option value="cercle">Cercle</option><option value="polygone">Polygone</option></select></label>
+          <label>Rayon (m)<input id="zRayon" type="number" value="500" /></label>
+        </div>
+        <p style="font-size:12px;color:var(--mut)">Cercle : cliquez la carte pour placer le centre. Polygone : cliquez pour ajouter des sommets, puis « Terminer ».</p>
+        <div class="row">
+          <button id="btnZTerminer" class="ghost">Terminer le polygone</button>
+          <button id="btnZCreer">Créer la zone</button>
+        </div>
+        <div id="zmap" style="margin-top:8px"></div>
+        <h3>Mes zones</h3>
+        <div id="zList" style="font-size:12px"></div>
+        <h3>Événements entrée / sortie (7 j)</h3>
+        <div class="row"><label>Véhicule<select id="zVeh"><option value="">Tous</option></select></label><div><button id="btnZEvents" class="ghost">Charger</button></div></div>
+        <div id="zEvents" style="font-size:12px;margin-top:6px"></div>
+      </div>
+    </div>
+
+    <div id="v-profil" class="hidden">
+      <div class="card">
+        <h2>Profil et abonnement</h2>
+        <div id="subBox" style="font-size:13px"></div>
+        <div class="row" style="margin-top:8px">
+          <button id="btnChoisirPlan" class="ghost">Choisir / changer de forfait</button>
+          <button id="btnDeclarerPaiement" class="ghost">J’ai payé (virement)</button>
+        </div>
+        <div class="row hidden" id="planBox" style="margin-top:8px">
+          <label>Forfait<select id="planSel"></select></label>
+          <label>Paiement<select id="planMethode"><option value="virement">Virement bancaire</option><option value="especes">Espèces</option><option value="autre">Autre</option></select></label>
+          <div><button id="btnSouscrire">Souscrire</button></div>
+        </div>
+        <h3>Modifier le profil</h3>
+        <div class="row">
+          <label>Nom<input id="pNom" /></label>
+          <label>Prénom<input id="pPrenom" /></label>
+          <label>Téléphone<input id="pTel" /></label>
+          <label>Email<input id="pEmail" type="email" /></label>
+        </div>
+        <div class="row"><button id="btnSaveProfil" class="ghost">Enregistrer</button></div>
+        <h3>Changer le mot de passe</h3>
+        <div class="row">
+          <label>Ancien<input id="pwOld" type="password" /></label>
+          <label>Nouveau (6+)<input id="pwNew" type="password" /></label>
+          <div><button id="btnPw" class="ghost">Changer</button></div>
+        </div>
+        <p class="msg" id="profilMsg"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADMIN -->
+  <section class="card hidden" id="view-admin-login">
+    <h2>🔐 Administration</h2>
+    <div class="row">
+      <label>Utilisateur<input id="aUser" autocomplete="username" /></label>
+      <label>Mot de passe<input id="aPass" type="password" autocomplete="current-password" /></label>
+      <label>Code 2FA (si activé)<input id="aCode" inputmode="numeric" /></label>
+    </div>
+    <button id="btnAdminLogin">Se connecter</button>
+    <p class="msg" id="adminMsg"></p>
+  </section>
+
+  <section id="view-admin" class="hidden">
+    <div class="card"><h2 style="margin:0">🧭 Pilotage — <span id="aQui"></span></h2></div>
+    <div class="tabs" id="adminTabs">
+      <button data-v="dash" class="on ghost">Indicateurs</button>
+      <button data-v="comptes" class="ghost">Comptes</button>
+      <button data-v="forfaits" class="ghost">Forfaits</button>
+      <button data-v="paiements" class="ghost">Paiements</button>
+      <button data-v="audit" class="ghost">Journal</button>
+      <button data-v="reglages" class="ghost">Réglages</button>
+    </div>
+    <div id="a-dash"><div class="card"><h2>Indicateurs</h2><div id="aStats" style="font-size:13px"></div><button id="btnExpire" class="ghost">Figer les abonnements expirés</button></div></div>
+    <div id="a-comptes" class="hidden">
+      <div class="card">
+        <h2>Comptes</h2>
+        <div class="row">
+          <label>Type<select id="fType"><option value="">Tous</option><option value="particulier">Particulier</option><option value="entreprise">Entreprise</option></select></label>
+          <label>Statut<select id="fStatut"><option value="">Tous</option><option value="inscription_recue">Inscription reçue</option><option value="en_attente_paiement">En attente de paiement</option><option value="paiement_a_verifier">Paiement à vérifier</option><option value="en_attente_validation">En attente de validation</option><option value="actif">Actif</option><option value="expire">Expiré</option><option value="suspendu">Suspendu</option><option value="refuse">Refusé</option></select></label>
+          <label>Recherche<input id="fQ" placeholder="nom, téléphone, utilisateur" /></label>
+          <div><button id="btnComptes" class="ghost">Filtrer</button></div>
+        </div>
+        <div style="overflow:auto;margin-top:8px"><table><thead><tr><th>Compte</th><th>Type</th><th>Statut</th><th>Forfait / paiement</th><th></th></tr></thead><tbody id="aRows"></tbody></table></div>
+      </div>
+    </div>
+    <div id="a-forfaits" class="hidden"><div class="card"><h2>Forfaits</h2><div id="aPlans" style="font-size:12px"></div><h3>Nouveau / modifier</h3><div class="row"><label>Nom<input id="plNom" /></label><label>Type<select id="plType"><option value="particulier">Particulier</option><option value="entreprise">Entreprise</option></select></label><label>Prix<input id="plPrix" type="number" /></label><label>Durée<select id="plDuree"><option value="mensuel">Mensuelle</option><option value="trimestriel">Trimestrielle</option><option value="annuel">Annuelle</option></select></label><label>Véhicules max<input id="plLimite" type="number" placeholder="vide = illimité" /></label><label>Géorepérage<select id="plGeo"><option value="0">Non</option><option value="1">Oui</option></select></label></div><div class="row"><button id="btnPlanSave">Enregistrer</button></div><p class="msg" id="planMsg"></p></div></div>
+    <div id="a-paiements" class="hidden"><div class="card"><h2>Paiements à vérifier</h2><div id="aPays" style="font-size:12px"></div></div></div>
+    <div id="a-audit" class="hidden"><div class="card"><h2>Journal d’audit</h2><div id="aAudit" style="font-size:12px"></div></div></div>
+    <div id="a-reglages" class="hidden"><div class="card"><h2>Réglages</h2><label style="flex-direction:row;align-items:center;gap:8px"><input id="setAuto" type="checkbox" style="width:auto" /> Activation automatique après paiement confirmé</label><button id="btnSettings" class="ghost">Enregistrer</button></div></div>
   </section>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

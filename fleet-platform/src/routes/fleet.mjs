@@ -3,11 +3,20 @@ import { query } from "../db.mjs";
 import { requireOwner } from "../auth.mjs";
 import { readJson, sendJson } from "../http.mjs";
 import { activeDriver, vehicleForOwner } from "../fleet.mjs";
+import { compteUtilisable } from "../lifecycle.mjs";
 import { optionalText } from "../validation.mjs";
+
+async function gate(session) {
+  const check = await compteUtilisable(session.owner.id);
+  if (!check.ok) return check.motif;
+  return null;
+}
 
 export async function live(req, res, auth, params) {
   const session = auth || (await requireOwner(req));
   if (!session) return sendJson(res, 401, { error: "Non authentifié" });
+  const bloque = await gate(session);
+  if (bloque) return sendJson(res, 403, { error: bloque });
   const url = new URL(req.url, "http://localhost");
   const vehicleId = url.searchParams.get("vehicleId");
   const carId = url.searchParams.get("carId");
@@ -61,6 +70,8 @@ export async function live(req, res, auth, params) {
 export async function history(req, res, auth) {
   const session = auth || (await requireOwner(req));
   if (!session) return sendJson(res, 401, { error: "Non authentifié" });
+  const bloque = await gate(session);
+  if (bloque) return sendJson(res, 403, { error: bloque });
   const url = new URL(req.url, "http://localhost");
   const vehicle = await vehicleForOwner(session.owner.id, {
     id: url.searchParams.get("vehicleId"),
@@ -92,6 +103,8 @@ export async function history(req, res, auth) {
 export async function stats(req, res, auth) {
   const session = auth || (await requireOwner(req));
   if (!session) return sendJson(res, 401, { error: "Non authentifié" });
+  const bloque = await gate(session);
+  if (bloque) return sendJson(res, 403, { error: bloque });
   const url = new URL(req.url, "http://localhost");
   const carId = url.searchParams.get("carId") || "";
   const fin = url.searchParams.get("fin") ? new Date(url.searchParams.get("fin")) : new Date();

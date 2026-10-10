@@ -1,7 +1,8 @@
 import { query } from "../db.mjs";
 import { readJson, sendJson } from "../http.mjs";
 import { activeDriver, vehicleBySerial } from "../fleet.mjs";
-import { coordinate, driverNin, finiteNumber, haversineMeters, optionalText, parseDate, text } from "../validation.mjs";
+import { compteUtilisable } from "../lifecycle.mjs";
+import { coordinate, dansZone, driverNin, finiteNumber, haversineMeters, optionalText, parseDate, text } from "../validation.mjs";
 
 function tripId(vehicleId) {
   return `flt-${vehicleId}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.slice(0, 64);
@@ -75,6 +76,12 @@ export async function ingest(req, res) {
           rejected += 1;
           continue;
         }
+        // Exigence fondamentale : pas de suivi réel sans compte activé.
+        const gate = await compteUtilisable(vehicle.owner_id);
+        if (!gate.ok) {
+          rejected += 1;
+          continue;
+        }
         const lat = coordinate(point.lat, "lat");
         const lon = coordinate(point.lon, "lon");
         const recordedAt = parseDate(point.recordedAt || point.timestamp);
@@ -120,6 +127,7 @@ export async function ingest(req, res) {
           [vehicle.id, vehicle.car_id, lat, lon, speed, heading, fuel, trip.id, recordedAt]
         );
         await query(`UPDATE fleet_trips SET distance_m = $1 WHERE id = $2`, [tripDistance, trip.id]);
+        await detecterZones(vehicle.id, lat, lon, recordedAt);
         inserted += 1;
       } catch {
         rejected += 1;
@@ -136,4 +144,46 @@ export async function usage(req, res) {
     ok: true,
     usage: "POST {serial, lat, lon, speed?, heading?, fuel?, recordedAt|timestamp?} ou {cars:[...], sessionId?} vers /api/external/track"
   });
+}
+
+// Détection entrée/sortie : compare l'état précédent, journalise la transition.
+async function detecterZones(vehicleId, lat, lon, recordedAt) {
+  try {
+    const zones = await query(
+      `SELECT g.* FROM fleet_geofence_vehicles gv
+         JOIN fleet_geofences g ON g.id = gv.geofence_id
+        WHERE gv.vehicle_id = $1 AND gv.actif AND g.actif`,
+      [vehicleId]
+    );
+    for (const zone of zones.rows) {
+      let inside = false;
+      try {
+        inside = dansZone(lat, lon, zone);
+      } catch {
+        continue;
+      }
+      const state = (
+        await query(`SELECT inside FROM fleet_geofence_states WHERE vehicle_id = $1 AND geofence_id = $2 LIMIT 1`, [vehicleId, zone.id])
+      ).rows[0];
+      if (!state) {
+        await query(
+          `INSERT INTO fleet_geofence_states(vehicle_id, geofence_id, inside) VALUES($1,$2,$3)
+           ON CONFLICT (vehicle_id, geofence_id) DO UPDATE SET inside = EXCLUDED.inside, updated_at = now()`,
+          [vehicleId, zone.id, inside]
+        );
+        continue; // premier point : mémorise sans générer de faux événement
+      }
+      if (state.inside !== inside) {
+        await query(`UPDATE fleet_geofence_states SET inside = $1, updated_at = now() WHERE vehicle_id = $2 AND geofence_id = $3`, [
+          inside,
+          vehicleId,
+          zone.id
+        ]);
+        await query(
+          `INSERT INTO fleet_geofence_events(geofence_id, vehicle_id, type, occurred_at) VALUES($1,$2,$3,$4)`,
+          [zone.id, vehicleId, inside ? "entree" : "sortie", recordedAt]
+        );
+      }
+    }
+  } catch {}
 }

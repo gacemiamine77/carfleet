@@ -9,7 +9,7 @@
     "start": "node server.mjs",
     "migrate": "node scripts/migrate.mjs",
     "test": "node --test test/*.test.mjs",
-    "check": "node --check server.mjs && node --check src/db.mjs && node --check src/auth.mjs && node --check src/http.mjs && node --check src/validation.mjs && node --check src/routes/auth.mjs && node --check src/routes/vehicles.mjs && node --check src/routes/drivers.mjs && node --check src/routes/track.mjs && node --check src/routes/fleet.mjs && node --check scripts/migrate.mjs"
+    "check": "node --check server.mjs && node --check src/db.mjs && node --check src/auth.mjs && node --check src/admin_auth.mjs && node --check src/totp.mjs && node --check src/lifecycle.mjs && node --check src/http.mjs && node --check src/validation.mjs && node --check src/fleet.mjs && node --check src/routes/auth.mjs && node --check src/routes/vehicles.mjs && node --check src/routes/drivers.mjs && node --check src/routes/track.mjs && node --check src/routes/fleet.mjs && node --check src/routes/subscriptions.mjs && node --check src/routes/geofences.mjs && node --check src/routes/admin.mjs && node --check scripts/migrate.mjs && node --check scripts/admin.mjs"
   },
   "dependencies": {
     "dotenv": "17.3.1",

@@ -2,6 +2,7 @@ import { query } from "../db.mjs";
 import { requireOwner } from "../auth.mjs";
 import { readJson, sendJson } from "../http.mjs";
 import { closeActiveAssignments, vehicleForOwner } from "../fleet.mjs";
+import { compteUtilisable } from "../lifecycle.mjs";
 import { driverNin, optionalText, text } from "../validation.mjs";
 
 async function driverForOwner(ownerId, driverId) {
@@ -42,6 +43,8 @@ export async function listDrivers(req, res, auth) {
 export async function addDriver(req, res, auth) {
   const session = auth || (await requireOwner(req));
   if (!session) return sendJson(res, 401, { error: "Non authentifié" });
+  const gate = await compteUtilisable(session.owner.id);
+  if (!gate.ok) return sendJson(res, 403, { error: gate.motif });
   try {
     const body = await readJson(req);
     const vehicle = await vehicleForOwner(session.owner.id, { id: body.voitureId || body.vehicleId });

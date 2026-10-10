@@ -46,7 +46,8 @@ export async function requireOwner(req) {
   if (!token) return null;
   const { rows } = await query(
     `SELECT a.id AS account_id, a.username, a.role, a.actif,
-            o.id AS owner_id, o.type, o.nom, o.prenom, o.raison_sociale, o.nin, o.telephone, o.wilaya
+            o.id AS owner_id, o.type, o.nom, o.prenom, o.raison_sociale, o.nin, o.telephone, o.wilaya,
+            o.statut_compte, o.limite_vehicules, o.email
        FROM fleet_owner_sessions s
        JOIN fleet_owner_accounts a ON a.id = s.account_id
        JOIN fleet_owners o ON o.id = a.owner_id
@@ -67,7 +68,10 @@ export async function requireOwner(req) {
       raisonSociale: row.raison_sociale,
       nin: row.nin,
       telephone: row.telephone,
-      wilaya: row.wilaya
+      wilaya: row.wilaya,
+      statutCompte: row.statut_compte,
+      limiteVehicules: row.limite_vehicules,
+      email: row.email
     }
   };
 }
