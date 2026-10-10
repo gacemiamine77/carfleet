@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.heat";
 import { infractionSymbol } from "./MapView";
 
 interface Pt {
@@ -12,10 +13,23 @@ interface Pt {
 
 // Mini-carte de l'onglet Infractions : affiche les points affichés dans le tableau
 // (aujourd'hui en mode Session). Indépendante de la carte principale.
+function intensiteChaleur(infraction: string): number {
+  switch (infraction) {
+    case "circulation à contresens": return 1;
+    case "zone interdite": return 0.85;
+    case "conduite longue sans arrêt": return 0.65;
+    case "exces de vitesse": return 0.55;
+    case "arrêt interdit":
+    case "stationnement interdit": return 0.4;
+    default: return 0.3;
+  }
+}
+
 export default function InfractionsMiniMap({ points }: { points: Pt[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
+  const [chaleur, setChaleur] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -42,7 +56,14 @@ export default function InfractionsMiniMap({ points }: { points: Pt[] }) {
     layer.clearLayers();
     const pts = (points || []).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)).slice(0, 1000);
     const bounds: [number, number][] = [];
-    for (const inf of pts) {
+    if (chaleur) {
+      L.heatLayer(
+        pts.map((p) => [p.lat, p.lon, intensiteChaleur(p.infraction)]),
+        { radius: 30, blur: 24, maxZoom: 14, minOpacity: 0.45 }
+      ).addTo(layer);
+      for (const p of pts) bounds.push([p.lat, p.lon]);
+    } else {
+      for (const inf of pts) {
       const sym = infractionSymbol(inf.infraction);
       const st = inf.statut || "nouveau";
       L.marker([inf.lat, inf.lon], {
@@ -56,11 +77,24 @@ export default function InfractionsMiniMap({ points }: { points: Pt[] }) {
         `<div style="font-size:12px;"><b>${sym.glyph} ${inf.infraction}</b><br/>🚗 ${inf.immatriculation || inf.carId || "?"}${inf.conducteurNom ? `<br/>${inf.conducteurNom}` : ""}</div>`
       ).addTo(layer);
       bounds.push([inf.lat, inf.lon]);
+      }
     }
     if (bounds.length === 1) map.setView(bounds[0], 13);
     else if (bounds.length > 1) map.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [20, 20] });
     map.invalidateSize();
-  }, [points]);
+  }, [points, chaleur]);
 
-  return <div ref={containerRef} className="w-full rounded-xl overflow-hidden border border-gray-200" style={{ height: "300px" }} />;
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setChaleur((v) => !v)}
+        title="Basculer entre points et densité"
+        className={`absolute top-2 right-2 z-[1000] text-xs px-2 py-1 rounded border shadow ${chaleur ? "bg-red-600 text-white border-red-600" : "bg-white/95 hover:bg-red-50"}`}
+      >
+        {chaleur ? "📍 Points" : "🔥 Chaleur"}
+      </button>
+      <div ref={containerRef} className="w-full rounded-xl overflow-hidden border border-gray-200" style={{ height: "300px" }} />
+    </div>
+  );
 }

@@ -27,6 +27,10 @@ data class CachedInfraction(
     val latitude: Double,
     val longitude: Double,
     val statut: String,
+    val assigneUniteId: Int?,
+    val accepteUniteId: Int?,
+    val resultat: String?,
+    val recidive30: Int?,
     val recordedAt: String
 )
 
@@ -86,7 +90,16 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
-@Database(entities = [CachedInfraction::class, CachedUnite::class, PendingStatut::class], version = 2, exportSchema = false)
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `cached_infractions` ADD COLUMN `assigneUniteId` INTEGER")
+        db.execSQL("ALTER TABLE `cached_infractions` ADD COLUMN `accepteUniteId` INTEGER")
+        db.execSQL("ALTER TABLE `cached_infractions` ADD COLUMN `resultat` TEXT")
+        db.execSQL("ALTER TABLE `cached_infractions` ADD COLUMN `recidive30` INTEGER")
+    }
+}
+
+@Database(entities = [CachedInfraction::class, CachedUnite::class, PendingStatut::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): SrDao
 
@@ -95,7 +108,7 @@ abstract class AppDatabase : RoomDatabase() {
         fun get(ctx: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(ctx.applicationContext, AppDatabase::class.java, "sr_units.db")
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build().also { instance = it }
             }
     }

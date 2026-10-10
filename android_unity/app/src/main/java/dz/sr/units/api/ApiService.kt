@@ -61,4 +61,16 @@ interface ApiService {
         @Header("Authorization") auth: String,
         @Body body: InterceptionAssignRequest
     ): Map<String, Any>
+
+    @GET("api/unites/notifications")
+    suspend fun notifications(
+        @Header("Authorization") auth: String,
+        @Query("limit") limit: Int = 50
+    ): NotificationsResponse
+
+    @PATCH("api/unites/notifications")
+    suspend fun marquerNotificationsLues(
+        @Header("Authorization") auth: String,
+        @Body body: MarquerLuesRequest
+    ): Map<String, Any>
 }

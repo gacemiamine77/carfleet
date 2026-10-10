@@ -47,6 +47,15 @@ data class Infraction(
     val codeWilaya: String? = null,
     val wilaya: String? = null,
     val statut: String = "nouveau",
+    val assigneUniteId: Int? = null,
+    val notifieAt: String? = null,
+    val accepteUniteId: Int? = null,
+    val accepteAt: String? = null,
+    val clotureAt: String? = null,
+    val resultat: String? = null,
+    val compteRendu: String? = null,
+    val recidive30: Int? = null,
+    val recidiveGrave: Int? = null,
     val recordedAt: String = "",
     val distM: Double? = null
 )
@@ -137,4 +146,34 @@ data class InterceptionResponse(
     val error: String? = null
 )
 
-data class InterceptionAssignRequest(val infractionId: Int, val uniteId: Int)
+data class InterceptionAssignRequest(
+    val infractionId: Int,
+    val uniteId: Int? = null,
+    val action: String? = null,
+    val resultat: String? = null,
+    val compteRendu: String? = null
+)
+
+data class NotificationUnite(
+    val id: Int = 0,
+    val type: String? = null,
+    val titre: String? = null,
+    val corps: String? = null,
+    val infractionId: Int? = null,
+    val uniteSourceId: Int? = null,
+    val lu: Boolean = false,
+    val createdAt: String? = null
+)
+
+data class NotificationsResponse(
+    val ok: Boolean = false,
+    val notifications: List<NotificationUnite> = emptyList(),
+    val nonLues: Int = 0,
+    val error: String? = null
+)
+
+data class MarquerLuesRequest(
+    val id: Int? = null,
+    val all: Boolean? = null,
+    val lu: Boolean = true
+)

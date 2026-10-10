@@ -1,5 +1,6 @@
 package dz.sr.units.ui
 
+import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -8,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Spinner
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -26,6 +28,7 @@ class TreatmentFragment : Fragment() {
     private lateinit var rv: RecyclerView
 
     private var modeVehicules = true
+    private var seulementMiennes = false
     private var fType = "all"
     private var fPeriode = "all"   // all | today | 7d | 30d
     private var fJour: String? = null   // yyyy-MM-dd précis (bouton 📅), prioritaire sur fPeriode
@@ -44,6 +47,7 @@ class TreatmentFragment : Fragment() {
         val btnPlaque = view.findViewById<Button>(R.id.btnPlaque)
         val btnModeVeh = view.findViewById<Button>(R.id.btnModeVehicules)
         val btnModeInf = view.findViewById<Button>(R.id.btnModeInfractions)
+        val btnMiennes = view.findViewById<Button>(R.id.btnModeMiennes)
 
         val types = listOf("Tous types", "exces de vitesse", "zone interdite",
             "circulation à contresens", "conduite longue sans arrêt",
@@ -74,8 +78,9 @@ class TreatmentFragment : Fragment() {
         btnPlaque.setOnClickListener { fPlaque = etPlaque.text.toString().trim(); appliquer() }
         etPlaque.setOnEditorActionListener { _, _, _ -> fPlaque = etPlaque.text.toString().trim(); appliquer(); true }
 
-        btnModeVeh.setOnClickListener { modeVehicules = true; majBoutons(btnModeVeh, btnModeInf); appliquer() }
-        btnModeInf.setOnClickListener { modeVehicules = false; majBoutons(btnModeVeh, btnModeInf); appliquer() }
+        btnModeVeh.setOnClickListener { modeVehicules = true; majBoutons(btnModeVeh, btnModeInf, btnMiennes); appliquer() }
+        btnModeInf.setOnClickListener { modeVehicules = false; majBoutons(btnModeVeh, btnModeInf, btnMiennes); appliquer() }
+        btnMiennes.setOnClickListener { seulementMiennes = !seulementMiennes; majBoutons(btnModeVeh, btnModeInf, btnMiennes); appliquer() }
 
         rv.layoutManager = LinearLayoutManager(context)
         adapter = InfractionAdapter(
@@ -84,7 +89,11 @@ class TreatmentFragment : Fragment() {
                 vm.selected.value = it
                 (activity as? MainActivity)?.navigateTo(R.id.nav_map)
             },
-            onStatut = { x, s -> vm.setStatut(x.id, s) }
+            onStatut = { x, s -> vm.setStatut(x.id, s) },
+            monUniteId = vm.session.unite?.id,
+            onFlux = { x, flux ->
+                if (flux == "accepter") vm.accepterInterception(x.id) else demanderCloture(x.id)
+            }
         )
         vehAdapter = VehiculeAdapter(
             emptyList(),
@@ -102,18 +111,52 @@ class TreatmentFragment : Fragment() {
             }
         )
         rv.adapter = vehAdapter
-        majBoutons(btnModeVeh, btnModeInf)
+        majBoutons(btnModeVeh, btnModeInf, btnMiennes)
         vm.items.observe(viewLifecycleOwner) { appliquer() }
         pollWhileStarted(vm)
     }
 
-    private fun majBoutons(btnVeh: Button, btnInf: Button) {
+    private fun majBoutons(btnVeh: Button, btnInf: Button, btnMiennes: Button) {
         val on = ContextCompat.getColor(requireContext(), R.color.blue)
         val off = ContextCompat.getColor(requireContext(), android.R.color.darker_gray)
         btnVeh.alpha = if (modeVehicules) 1f else 0.55f
         btnInf.alpha = if (!modeVehicules) 1f else 0.55f
+        btnMiennes.alpha = if (seulementMiennes) 1f else 0.55f
         btnVeh.setTextColor(if (modeVehicules) on else off)
         btnInf.setTextColor(if (!modeVehicules) on else off)
+        btnMiennes.setTextColor(if (seulementMiennes) on else off)
+    }
+
+    private fun demanderCloture(id: Int) {
+        val ctx = requireContext()
+        val resultats = listOf(
+            "verbalisation" to "Verbalisation",
+            "pv" to "Procès-verbal",
+            "controle_ok" to "Contrôle OK",
+            "fausse_alerte" to "Fausse alerte",
+            "abandonnee" to "Abandonnée"
+        )
+        val conteneur = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            val marge = (16 * resources.displayMetrics.density).toInt()
+            setPadding(marge, marge / 2, marge, 0)
+        }
+        val sp = Spinner(ctx).apply {
+            adapter = ArrayAdapter(ctx, android.R.layout.simple_spinner_item, resultats.map { it.second }).apply {
+                setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+        }
+        val note = EditText(ctx).apply { hint = "Compte rendu (lieu, heure, plaque…)" }
+        conteneur.addView(sp)
+        conteneur.addView(note)
+        AlertDialog.Builder(ctx)
+            .setTitle("🏁 Clôturer l'intervention #$id")
+            .setView(conteneur)
+            .setPositiveButton("Clôturer") { _, _ ->
+                vm.cloturerInterception(id, resultats[sp.selectedItemPosition].first, note.text.toString().trim())
+            }
+            .setNegativeButton("Annuler", null)
+            .show()
     }
 
     private fun appliquer() {
@@ -126,6 +169,13 @@ class TreatmentFragment : Fragment() {
         }.timeInMillis
         val list = (vm.items.value.orEmpty())
             .filter { it.statut != "traite" }
+            .filter {
+                if (!seulementMiennes) true
+                else {
+                    val monId = vm.session.unite?.id
+                    monId != null && monId != 0 && it.assigneUniteId == monId
+                }
+            }
             .filter { fType == "all" || it.infraction == fType }
             .filter { q.isBlank() || (it.immatriculation ?: "").lowercase().contains(q) || (it.carId ?: "").lowercase().contains(q) }
             .filter { x ->

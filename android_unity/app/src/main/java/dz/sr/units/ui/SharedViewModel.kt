@@ -11,6 +11,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
 import dz.sr.units.api.ApiClient
 import dz.sr.units.api.Infraction
+import dz.sr.units.api.NotificationUnite
 import dz.sr.units.api.Stats
 import dz.sr.units.data.AppDatabase
 import dz.sr.units.data.CachedUnite
@@ -41,6 +42,12 @@ class SharedViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _unites = MutableLiveData<List<CachedUnite>>(emptyList())
     val unites: LiveData<List<CachedUnite>> = _unites
+
+    private val _notifications = MutableLiveData<List<NotificationUnite>>(emptyList())
+    val notifications: LiveData<List<NotificationUnite>> = _notifications
+
+    private val _nonLues = MutableLiveData(0)
+    val nonLues: LiveData<Int> = _nonLues
 
     private val _offline = MutableLiveData(false)
     val offline: LiveData<Boolean> = _offline
@@ -183,6 +190,65 @@ class SharedViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun assignerInterception(infractionId: Int, uniteId: Int) =
         repo.assignerInterception(infractionId, uniteId)
 
+    /** Accepte une interception assignée à mon unité. */
+    fun accepterInterception(id: Int) {
+        viewModelScope.launch {
+            val ok = mutex.withLock { repo.accepterInterception(id) }
+            if (ok) {
+                _items.value = _items.value?.map {
+                    if (it.id == id) it.copy(statut = "en_cours", accepteUniteId = session.unite?.id) else it
+                }
+                _message.value = "✅ Intervention acceptée"
+                refreshNotifications()
+            } else {
+                _message.value = "Échec de l'acceptation — réessayez"
+            }
+        }
+    }
+
+    /** Clôture une intervention avec résultat et compte rendu. */
+    fun cloturerInterception(id: Int, resultat: String, compteRendu: String) {
+        viewModelScope.launch {
+            val ok = mutex.withLock { repo.cloturerInterception(id, resultat, compteRendu) }
+            if (ok) {
+                val statut = if (resultat == "abandonnee" || resultat == "fausse_alerte") "abandonnee" else "terminee"
+                _items.value = _items.value?.map {
+                    if (it.id == id) it.copy(
+                        statut = statut,
+                        accepteUniteId = it.accepteUniteId ?: session.unite?.id,
+                        resultat = resultat,
+                        compteRendu = compteRendu.ifBlank { null }
+                    ) else it
+                }
+                _message.value = "🏁 Intervention clôturée"
+                refreshNotifications()
+            } else {
+                _message.value = "Échec de la clôture — réessayez"
+            }
+        }
+    }
+
+    /** Recharge les notifications serveur de mon unité. */
+    fun refreshNotifications() {
+        viewModelScope.launch {
+            val (list, nonLues) = mutex.withLock { repo.notifications() }
+            _notifications.value = list
+            _nonLues.value = nonLues
+        }
+    }
+
+    /** Marque toutes les notifications comme lues. */
+    fun marquerNotificationsLues() {
+        viewModelScope.launch {
+            if (mutex.withLock { repo.marquerNotificationsLues() }) {
+                _notifications.value = _notifications.value?.map { it.copy(lu = true) }
+                _nonLues.value = 0
+            } else {
+                _message.value = "Échec du marquage — réessayez"
+            }
+        }
+    }
+
     /** Déconnexion : session + cache local + états en mémoire (aucune donnée ne survit à l'unité précédente). */
     fun logout() {
         manualJob?.cancel()
@@ -190,6 +256,8 @@ class SharedViewModel(app: Application) : AndroidViewModel(app) {
         _items.value = emptyList()
         _stats.value = null
         _unites.value = emptyList()
+        _notifications.value = emptyList()
+        _nonLues.value = 0
         _total.value = 0
         _offline.value = false
         _authExpired.value = false

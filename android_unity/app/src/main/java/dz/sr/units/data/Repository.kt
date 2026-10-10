@@ -5,6 +5,8 @@ import dz.sr.units.api.ApiClient
 import dz.sr.units.api.Infraction
 import dz.sr.units.api.InterceptionAssignRequest
 import dz.sr.units.api.InterceptionResponse
+import dz.sr.units.api.MarquerLuesRequest
+import dz.sr.units.api.NotificationUnite
 import dz.sr.units.api.PatchStatutRequest
 import dz.sr.units.api.Stats
 import dz.sr.units.api.TrajetResponse
@@ -146,6 +148,43 @@ class Repository(
         false
     }
 
+    /** Accepte une interception assignée à mon unité (statut → en_cours). */
+    suspend fun accepterInterception(infractionId: Int): Boolean = try {
+        ApiClient.service().assignerInterception(auth, InterceptionAssignRequest(infractionId, action = "accepter"))
+        true
+    } catch (e: Exception) {
+        false
+    }
+
+    /** Clôture une intervention (statut → terminee/abandonnee + résultat + compte rendu). */
+    suspend fun cloturerInterception(infractionId: Int, resultat: String, compteRendu: String): Boolean = try {
+        ApiClient.service().assignerInterception(
+            auth,
+            InterceptionAssignRequest(infractionId, action = "cloturer", resultat = resultat, compteRendu = compteRendu)
+        )
+        true
+    } catch (e: Exception) {
+        false
+    }
+
+    /** Notifications serveur (assignations, alertes) pour mon unité. */
+    suspend fun notifications(): Pair<List<NotificationUnite>, Int> = try {
+        val res = ApiClient.service().notifications(auth)
+        res.notifications to res.nonLues
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        emptyList<NotificationUnite>() to 0
+    }
+
+    /** Marque toutes les notifications comme lues. */
+    suspend fun marquerNotificationsLues(): Boolean = try {
+        ApiClient.service().marquerNotificationsLues(auth, MarquerLuesRequest(all = true, lu = true))
+        true
+    } catch (e: Exception) {
+        false
+    }
+
     /** Applique localement puis tente d'envoyer ; en cas d'échec réseau, met en file d'attente. */
     suspend fun setStatut(id: Int, statut: String): StatutResult {
         dao.setStatut(id, statut)
@@ -185,13 +224,17 @@ class Repository(
         id = id, carId = carId, immatriculation = immatriculation, conducteurNom = conducteurNom,
         categorieVehicule = categorieVehicule, infraction = infraction,
         vitesse = vitesse, vitesseLimite = vitesseLimite, latitude = latitude,
-        longitude = longitude, statut = statut, recordedAt = recordedAt
+        longitude = longitude, statut = statut, assigneUniteId = assigneUniteId,
+        accepteUniteId = accepteUniteId, resultat = resultat, recidive30 = recidive30,
+        recordedAt = recordedAt
     )
 
     private fun CachedInfraction.toApi() = Infraction(
         id = id, carId = carId, immatriculation = immatriculation, conducteurNom = conducteurNom,
         categorieVehicule = categorieVehicule, infraction = infraction,
         vitesse = vitesse, vitesseLimite = vitesseLimite,
-        latitude = latitude, longitude = longitude, statut = statut, recordedAt = recordedAt
+        latitude = latitude, longitude = longitude, statut = statut, recordedAt = recordedAt,
+        assigneUniteId = assigneUniteId, accepteUniteId = accepteUniteId,
+        resultat = resultat, recidive30 = recidive30
     )
 }

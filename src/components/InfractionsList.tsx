@@ -19,6 +19,29 @@ interface Infraction {
   lat: number; lon: number;
   recordedAt: string; itineraireId: string;
   statut?: string; wilaya?: string; codeWilaya?: string;
+  resultat?: string | null; recidive30?: number; recidiveGrave?: number;
+}
+
+function statutClasse(statut: string): string {
+  switch (statut) {
+    case "notifie": return "bg-amber-100 text-amber-800";
+    case "en_cours": return "bg-blue-100 text-blue-800";
+    case "terminee": return "bg-emerald-100 text-emerald-800";
+    case "abandonnee": return "bg-gray-200 text-gray-700";
+    case "traite": return "bg-green-100 text-green-800";
+    default: return "bg-gray-100 text-gray-600";
+  }
+}
+
+function statutLibelle(statut: string): string {
+  switch (statut) {
+    case "notifie": return "Notifiée";
+    case "en_cours": return "En cours";
+    case "terminee": return "Terminée";
+    case "abandonnee": return "Abandonnée";
+    case "traite": return "✅ Traité";
+    default: return "Nouvelle";
+  }
 }
 
 interface Props {
@@ -118,6 +141,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
         excess: Number(x.exces) || 0, lat: Number(x.latitude), lon: Number(x.longitude),
         recordedAt: typeof x.recordedAt === "string" ? x.recordedAt : new Date(x.recordedAt).toISOString(),
         itineraireId: "", statut: x.statut || "nouveau", wilaya: x.wilaya, codeWilaya: x.codeWilaya,
+        resultat: x.resultat ?? null, recidive30: Number(x.recidive30) || 0, recidiveGrave: Number(x.recidiveGrave) || 0,
       }));
       setRows(mapped);
       setTotal(d.total ?? mapped.length);
@@ -170,6 +194,16 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
     window.open(`/api/unites/infractions?${params.toString()}`, "_blank");
   };
 
+  const handleCsv = () => {
+    const params = new URLSearchParams({ format: "csv" });
+    if (mode === "session") params.set("periode", "today");
+    else if (filterPeriode !== "all" && !filterJour) params.set("periode", filterPeriode);
+    if (filterInfraction !== "all") params.set("infraction", filterInfraction);
+    if (filterStatut !== "all") params.set("statut", filterStatut);
+    if (filterPlaque.trim()) params.set("q", filterPlaque.trim());
+    window.open(`/api/unites/infractions?${params.toString()}`, "_blank");
+  };
+
   const hasActiveFilter = filterInfraction !== "all" || filterStatut !== "all" ||
     (mode === "historique" && (filterPeriode !== "all" || !!filterJour)) || !!filterPlaque || filterTranche !== "all";
 
@@ -194,6 +228,7 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
               className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded font-semibold">🔍 Charger</button>
             <button onClick={() => setAutoOn((v) => !v)} title="Suivi temps réel (requête toutes les 8 s)"
               className={`text-xs px-2 py-1 rounded border ${autoOn ? "bg-amber-500 text-white border-amber-500" : "bg-white hover:bg-red-50"}`}>⏱️ Auto: {autoOn ? "ON" : "OFF"}</button>
+            <button onClick={handleCsv} title="Rapport Excel/CSV avec les filtres courants (jusqu’à 2000 lignes)" className="text-xs bg-white border border-emerald-600 text-emerald-700 px-2 py-1 rounded hover:bg-emerald-50">📄 CSV</button>
             <button onClick={handleExport} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded">⬇️ GeoJSON</button>
             {mode === "historique" && (
               <button onClick={async () => {
@@ -217,6 +252,9 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
             <option value="all">Tous statuts</option>
             <option value="nouveau">Nouveau</option>
             <option value="notifie">Notifié</option>
+            <option value="en_cours">En cours</option>
+            <option value="terminee">Terminée</option>
+            <option value="abandonnee">Abandonnée</option>
             <option value="traite">✅ Traité</option>
           </select>
           {mode === "historique" && (
@@ -285,13 +323,13 @@ export default function InfractionsList({ onSelectCar, onDisplayChange }: Props)
                     <td className="px-3 py-1 font-mono">{heure}</td>
                     <td className="px-3 py-1">{date}</td>
                     <td className="px-3 py-1"><span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${inf.infraction==='zone interdite' ? 'bg-amber-100 text-amber-800' : inf.infraction==='circulation à contresens' ? 'bg-purple-100 text-purple-700' : inf.infraction==='conduite longue sans arrêt' ? 'bg-orange-100 text-orange-800' : inf.infraction==='arrêt interdit' ? 'bg-red-200 text-red-800' : inf.infraction==='stationnement interdit' ? 'bg-yellow-100 text-yellow-800' : inf.infraction==='impossible de comparée' ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700'}`}>{inf.infraction}</span></td>
-                    <td className="px-3 py-1 font-mono">{inf.immatriculation} <span className="text-gray-400">({inf.carId})</span></td>
+                    <td className="px-3 py-1 font-mono">{inf.immatriculation} <span className="text-gray-400">({inf.carId})</span>{(inf.recidive30 || 0) >= 3 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-800 text-[11px] font-bold">⚠️ {inf.recidive30}/30j</span>}</td>
                     <td className="px-3 py-1">{inf.conducteurNom}</td>
                     <td className="px-3 py-1 max-w-[180px] truncate" title={inf.troncon + (inf.restriction ? ' — '+inf.restriction : '')}>{inf.roadName}{inf.restriction && <span className="text-amber-600"> ⚠️ {inf.restriction}</span>}</td>
                     <td className="px-3 py-1 font-bold text-red-600">{inf.speed.toFixed(0)} km/h</td>
                     <td className="px-3 py-1">{inf.speedLimit===9999 ? '—' : inf.speedLimit+' km/h'}</td>
                     <td className="px-3 py-1 font-bold text-red-700">{inf.infraction==='exces de vitesse' ? `+${inf.excess.toFixed(0)}` : '—'}</td>
-                    <td className="px-3 py-1"><span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${(inf.statut||'nouveau')==='traite' ? 'bg-green-100 text-green-800' : (inf.statut||'nouveau')==='notifie' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`} title={inf.wilaya ? `Unité ${inf.codeWilaya} - ${inf.wilaya}` : 'Pas encore pris en charge'}>{(inf.statut||'nouveau')==='traite' ? '✅ Traité' : (inf.statut||'nouveau')==='notifie' ? 'Notifié' : 'Nouveau'}</span></td>
+                    <td className="px-3 py-1"><span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${statutClasse(inf.statut || "nouveau")}`} title={inf.wilaya ? `Unité ${inf.codeWilaya} - ${inf.wilaya}${inf.resultat ? ` · ${inf.resultat}` : ""}` : "Pas encore pris en charge"}>{statutLibelle(inf.statut || "nouveau")}{inf.resultat ? ` · ${inf.resultat}` : ""}</span></td>
                     <td className="px-3 py-1 font-mono text-[11px]">{inf.lat.toFixed(4)}, {inf.lon.toFixed(4)}</td>
                   </tr>
                 );

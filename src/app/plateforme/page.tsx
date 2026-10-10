@@ -112,6 +112,10 @@ export default function Home() {
   const [comptesProprio, setComptesProprio] = useState<any[]>([]);
   const [searchVehRO, setSearchVehRO] = useState(true);
   const [comptes, setComptes] = useState<any[]>([]);
+  const [interceptions, setInterceptions] = useState<any[]>([]);
+  const [iStatut, setIStatut] = useState("all");
+  const [rPeriode, setRPeriode] = useState("7d");
+  const [rStatut, setRStatut] = useState("all");
   const [cWilaya, setCWilaya] = useState("");
   const [cCorps, setCCorps] = useState("");
   const [cMoyen, setCMoyen] = useState("");
@@ -154,7 +158,8 @@ export default function Home() {
     // Unités lues depuis la table unites_securite (pas du GeoJSON)
     fetch("/api/unites").then(r=>r.json()).then(d=> setUnites(d.unites || [])).catch(()=> setUnites([]));
     fetch("/api/unites/comptes").then(r=>r.json()).then(d=> setComptes(d.comptes || [])).catch(()=> setComptes([]));
-  }, [activeTab]);
+    fetch(`/api/unites/interceptions?statut=${iStatut}`, { cache: "no-store" }).then(r=>r.json()).then(d=> setInterceptions(d.interceptions || [])).catch(()=> setInterceptions([]));
+  }, [activeTab, iStatut]);
 
   useEffect(() => {
     if (activeTab !== "vehicules") return;
@@ -564,6 +569,61 @@ export default function Home() {
 
       <div className={`flex-1 overflow-auto p-4 space-y-4 ${activeTab!=="unites" ? "hidden" : ""}`}>
         <VehiculesInfractions />
+        <div className="bg-white rounded-xl shadow p-4 border">
+          <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+            <h3 className="font-bold text-sm">🚨 Interventions — {interceptions.length}</h3>
+            <select value={iStatut} onChange={(e)=>setIStatut(e.target.value)} className="text-xs border rounded px-2 py-1.5">
+              <option value="all">Tous les états</option>
+              <option value="notifie">Notifiées</option>
+              <option value="en_cours">En cours</option>
+              <option value="terminee">Terminées</option>
+              <option value="abandonnee">Abandonnées</option>
+            </select>
+          </div>
+          <div className="max-h-[40vh] overflow-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr className="text-left text-gray-500"><th className="px-3 py-1.5">Véhicule</th><th className="px-3 py-1.5">Infraction</th><th className="px-3 py-1.5">Assignée</th><th className="px-3 py-1.5">État</th><th className="px-3 py-1.5">Résultat</th><th className="px-3 py-1.5">Clôturée</th></tr>
+              </thead>
+              <tbody>
+                {interceptions.length===0 ? (
+                  <tr><td colSpan={6} className="text-center py-6 text-gray-400">Aucune intervention pour ce filtre.</td></tr>
+                ) : interceptions.slice(0,200).map((x:any)=>{
+                  const unite = unites.find((u:any)=>u.id===x.assigneUniteId);
+                  return (
+                    <tr key={x.id} className="border-t">
+                      <td className="px-3 py-1 font-mono">{x.immatriculation || x.carId}</td>
+                      <td className="px-3 py-1">{x.infraction}</td>
+                      <td className="px-3 py-1">{unite ? `${unite.code} — ${unite.nom}` : `#${x.assigneUniteId ?? "—"}`}</td>
+                      <td className="px-3 py-1 font-semibold">{x.statut}</td>
+                      <td className="px-3 py-1">{x.resultat || "—"}</td>
+                      <td className="px-3 py-1">{x.clotureAt ? new Date(x.clotureAt).toLocaleString("fr-DZ") : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            <select value={rPeriode} onChange={(e)=>setRPeriode(e.target.value)} className="text-xs border rounded px-2 py-1.5">
+              <option value="today">Aujourd’hui</option>
+              <option value="7d">7 jours</option>
+              <option value="30d">30 jours</option>
+              <option value="all">Toutes dates</option>
+            </select>
+            <select value={rStatut} onChange={(e)=>setRStatut(e.target.value)} className="text-xs border rounded px-2 py-1.5">
+              <option value="all">Tous statuts</option>
+              <option value="nouveau">Nouveau</option>
+              <option value="notifie">Notifié</option>
+              <option value="en_cours">En cours</option>
+              <option value="terminee">Terminé</option>
+              <option value="abandonnee">Abandonné</option>
+              <option value="traite">Traité</option>
+            </select>
+            <a href={`/api/unites/infractions?format=csv&periode=${rPeriode}&statut=${rStatut}`} target="_blank" rel="noreferrer" className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded font-semibold">📄 Rapport CSV</a>
+            <span className="text-[11px] text-gray-400">Rapport opérateur : infractions, véhicules, statuts, résultats et récidive (jusqu’à 2000 lignes).</span>
+          </div>
+        </div>
         <div className="bg-white rounded-xl shadow p-4 border">
           <h3 className="font-bold text-sm mb-2">🚓 Forces de sécurité — chargement GeoJSON</h3>
           <p className="text-xs text-gray-500 mb-3">Uploadez un <code>FeatureCollection</code> de <code>Point [lon,lat]</code> : <code>code, nom, type (police|gendarmerie), moyen (barrage_fixe|barrage_mobile|motards|vehicule_mobile|poste_fixe), codeWilaya, wilaya, telephone</code>. Les unités sont positionnées sur les routes et visibles dans l’app unités.</p>

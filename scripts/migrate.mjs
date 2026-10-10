@@ -15,13 +15,15 @@ if (!url) {
 const pool = new Pool({ connectionString: url });
 
 const targets = process.argv.slice(2); // ex : node scripts/migrate.mjs 0005 → applique seulement 0005
+const matchesTarget = (tag) =>
+  targets.some((target) => tag === target || tag.startsWith(`${target}_`) || tag.startsWith(target));
 async function main() {
   await pool.query(`CREATE TABLE IF NOT EXISTS __migrations (tag text primary key, applied_at timestamptz default now())`);
   const applied = new Set((await pool.query(`SELECT tag FROM __migrations`)).rows.map((r) => r.tag));
   const journal = JSON.parse(readFileSync(resolve("drizzle/meta/_journal.json"), "utf8"));
   for (const entry of journal.entries) {
     if (applied.has(entry.tag)) continue;
-    if (targets.length && !targets.includes(entry.tag)) continue;
+    if (targets.length && !matchesTarget(entry.tag)) continue;
     const file = resolve("drizzle", `${entry.tag}.sql`);
     if (!existsSync(file)) throw new Error(`Migration introuvable : ${file}`);
     const sql = readFileSync(file, "utf8");

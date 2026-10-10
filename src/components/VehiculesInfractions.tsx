@@ -8,12 +8,13 @@ interface Inf {
   id: number; carId?: string; immatriculation?: string; marque?: string; modele?: string;
   couleur?: string; conducteurNom?: string; categorieVehicule?: string; infraction: string;
   vitesse?: number; exces?: number; statut?: string; latitude: number; longitude: number; recordedAt: string;
+  recidive30?: number; recidiveGrave?: number;
 }
 
 interface Groupe {
   carId: string; immatriculation?: string; marque?: string; modele?: string; couleur?: string;
   conducteurNom?: string; categorieVehicule?: string;
-  total: number; graves: number;
+  total: number; graves: number; maxRecidive: number;
   parType: { type: string; count: number; graves: number }[];
   lastAt: string; lat: number; lon: number; derniereInfractionId: number;
 }
@@ -133,12 +134,13 @@ export default function VehiculesInfractions() {
       }
       const parType = [...types.entries()].map(([type, v]) => ({ type, ...v })).sort((a, b) => b.count - a.count);
       const first = <T,>(f: (x: Inf) => T | undefined): T | undefined => list.map(f).find((v) => v != null && String(v).trim() !== "");
+      const maxRecidive = Math.max(0, ...list.map((x) => Number(x.recidive30) || 0));
       const g: Groupe = {
         carId,
         immatriculation: first((x) => x.immatriculation),
         marque: first((x) => x.marque), modele: first((x) => x.modele), couleur: first((x) => x.couleur),
         conducteurNom: first((x) => x.conducteurNom), categorieVehicule: first((x) => x.categorieVehicule),
-        total: list.length, graves, parType,
+        total: list.length, graves, maxRecidive, parType,
         lastAt: last.recordedAt, lat: last.latitude, lon: last.longitude, derniereInfractionId: last.id,
       };
       if (q) {
@@ -219,7 +221,7 @@ export default function VehiculesInfractions() {
         {groupes.map((g) => (
           <div key={g.carId} className="border rounded-lg p-3 hover:bg-red-50 cursor-pointer" onClick={() => chasser(g)}>
             <div className="flex items-center justify-between">
-              <span className="font-bold text-sm">🚗 {libelle(g)}</span>
+              <span className="font-bold text-sm">🚗 {libelle(g)}{g.maxRecidive >= 3 && <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-bold">⚠️ {g.maxRecidive}/30j</span>}</span>
               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${g.graves > 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}>{g.total} inf. · {g.graves} graves</span>
             </div>
             <div className="text-xs text-gray-500 mt-0.5">

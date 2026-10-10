@@ -44,10 +44,11 @@ class VehiculeAdapter(
         ).joinToString(" · ")
 
         val graves = v.parType.sumOf { it.graves }
+        val recidive = if (v.recidive >= 3) " · ⚠️ ${v.recidive}/30j" else ""
         h.types.text = v.parType.joinToString("\n") { t ->
             "• ${t.count} ${t.type}" + if (t.graves > 0) " (${t.graves} graves)" else ""
         }
-        h.meta.text = "${v.total} infraction(s)" + if (graves > 0) " · $graves graves" else "" +
+        h.meta.text = "${v.total} infraction(s)" + if (graves > 0) " · $graves graves" else "" + recidive +
             " · ${v.lastAt.take(16).replace("T", " ")}"
 
         h.itemView.setOnClickListener { onTap(v) }
