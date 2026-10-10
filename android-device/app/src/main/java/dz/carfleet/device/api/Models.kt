@@ -63,6 +63,7 @@ data class OwnedVehicle(
     val id: Int = 0,
     val carId: String = "",
     val immatriculation: String = "",
+    val numeroSerie: String? = null,
     val marque: String? = null,
     val modele: String? = null,
     val couleur: String? = null,

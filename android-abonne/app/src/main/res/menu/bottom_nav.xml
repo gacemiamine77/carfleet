@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/nav_account" android:icon="@drawable/ic_nav_account" android:title="Compte" />
+    <item android:id="@+id/nav_vehicles" android:icon="@drawable/ic_nav_vehicles" android:title="Véhicules" />
+    <item android:id="@+id/nav_map" android:icon="@drawable/ic_nav_map" android:title="Carte" />
+    <item android:id="@+id/nav_trips" android:icon="@drawable/ic_nav_trips" android:title="Trajets" />
+    <item android:id="@+id/nav_profile" android:icon="@drawable/ic_nav_profile" android:title="Profil" />
+</menu>

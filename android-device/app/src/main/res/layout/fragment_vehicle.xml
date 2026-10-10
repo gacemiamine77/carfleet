@@ -130,12 +130,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
 
+            <EditText
+                android:id="@+id/etSerial"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:hint="N° de série du boîtier (pré-rempli pour test)" />
+
             <Button
                 android:id="@+id/btnAdd"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Enregistrer + générer n° série" />
+                android:text="Enregistrer" />
 
             <TextView
                 android:id="@+id/tvSerial"

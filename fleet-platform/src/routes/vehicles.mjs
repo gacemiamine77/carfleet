@@ -21,6 +21,7 @@ export async function listVehicles(req, res, auth) {
     vehicules.push({
       id: vehicle.id,
       carId: vehicle.car_id,
+      numeroSerie: vehicle.serial,
       immatriculation: vehicle.immatriculation,
       marque: vehicle.marque,
       modele: vehicle.modele,
@@ -61,6 +62,22 @@ export async function addVehicle(req, res, auth) {
   if (bloque) return sendJson(res, 403, { error: bloque });
   try {
     const body = await readJson(req);
+    // Re-liaison : le serial existe déjà pour ce compte (ex. réinstallation) → on rend le véhicule.
+    const serialDemande = optionalText(body.numeroSerie, 40);
+    if (serialDemande) {
+      const clash = await query(`SELECT * FROM fleet_vehicles WHERE serial = $1 LIMIT 1`, [serialDemande]);
+      if (clash.rowCount) {
+        if (clash.rows[0].owner_id === session.owner.id) {
+          const v = clash.rows[0];
+          return sendJson(res, 200, {
+            ok: true,
+            relie: true,
+            vehicule: { id: v.id, carId: v.car_id, immatriculation: v.immatriculation, numeroSerie: v.serial }
+          });
+        }
+        return sendJson(res, 409, { error: "Numéro de série déjà utilisé par un autre compte" });
+      }
+    }
     const immatriculation = text(body.immatriculation, 20, { required: true });
     const owner = (await query(`SELECT * FROM fleet_owners WHERE id = $1 LIMIT 1`, [session.owner.id])).rows[0];
     const { limite, source } = await limiteVehicules(owner);
@@ -73,13 +90,7 @@ export async function addVehicle(req, res, auth) {
     const existingPlate = await query(`SELECT id FROM fleet_vehicles WHERE immatriculation = $1 LIMIT 1`, [immatriculation]);
     if (existingPlate.rowCount) return sendJson(res, 409, { error: "Immatriculation déjà enregistrée" });
 
-    let serial = optionalText(body.numeroSerie, 40);
-    if (serial) {
-      const clash = await query(`SELECT id FROM fleet_vehicles WHERE serial = $1 LIMIT 1`, [serial]);
-      if (clash.rowCount) return sendJson(res, 409, { error: "Numéro de série déjà utilisé" });
-    } else {
-      serial = serialId("FLT");
-    }
+    const serial = serialDemande || serialId("FLT");
     const count = await query(`SELECT COUNT(*)::int AS n FROM fleet_vehicles WHERE owner_id = $1`, [session.owner.id]);
     const carId = `FLT-${session.owner.id}-${(count.rows[0]?.n || 0) + 1}-${Date.now().toString(36).toUpperCase()}`.slice(0, 64);
     const { rows } = await query(

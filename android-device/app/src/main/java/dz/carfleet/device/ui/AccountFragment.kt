@@ -22,6 +22,10 @@ import kotlinx.coroutines.launch
 // Compte : fiche CONNEXION (username + password + bouton inscription),
 // bouton inscription → fiche INSCRIPTION (infos propriétaire).
 class AccountFragment : Fragment() {
+    companion object {
+        const val SERVEUR_SECURITE = "https://carfleet-75dh.onrender.com"
+        const val SERVEUR_FLOTTE = "https://fleet-platform-kvfg.onrender.com"
+    }
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return inflater.inflate(R.layout.fragment_account, container, false)
     }
@@ -36,6 +40,13 @@ class AccountFragment : Fragment() {
         val tvInfo: TextView = view.findViewById(R.id.tvInfo)
         val tvErr: TextView = view.findViewById(R.id.tvErr)
         etUrl.setText(session.baseUrl)
+        // Choix du serveur : Sécurité publique OU Flotte privée (bases séparées)
+        view.findViewById<Button>(R.id.btnSrvSecu).setOnClickListener {
+            etUrl.setText(SERVEUR_SECURITE)
+        }
+        view.findViewById<Button>(R.id.btnSrvFlotte).setOnClickListener {
+            etUrl.setText(SERVEUR_FLOTTE)
+        }
         // Si connecté : masque login/inscription, affiche uniquement profil
         if (session.isLogged) {
             tvInfo.text = "Connecté : ${session.prenom} ${session.nom} (${session.username})"

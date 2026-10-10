@@ -260,6 +260,7 @@ $("btnSaveVeh").onclick = async () => {
       body.id = Number($("vehId").value);
       await call("/api/proprietaires/vehicules", { method: "PATCH", body: JSON.stringify(body) });
     } else {
+      body.numeroSerie = $("vehSerial").value.trim() || undefined;
       const j = await call("/api/proprietaires/vehicules", { method: "POST", body: JSON.stringify(body) });
       $("vehSerial").value = j.vehicule.numeroSerie || "";
     }
@@ -281,6 +282,7 @@ document.addEventListener("click", async (e) => {
     const v = (await call("/api/fleet/live")).vehicules.find((x) => x.id === Number(edit));
     if (!v) return;
     $("vehId").value = v.id; $("vehImmat").value = v.immatriculation || "";
+    $("vehSerial").value = v.numeroSerie || "";
     $("vehCat").value = v.categorieVehicule || "leger"; remplirMarques(v.marque || "", v.modele || "");
     $("vehAnnee").value = v.annee || ""; $("vehCouleur").value = v.couleur || "";
     $("vehVin").value = v.vin || "";
@@ -503,8 +505,10 @@ $("btnPlanSave").onclick = async () => {
   } catch (e) { msg("planMsg", e.message); }
 };
 async function chargerPaiements() {
-  const j = await call("/api/admin/paiements?statut=a_verifier", {}, true);
-  $("aPays").innerHTML = (j.paiements || []).map((p) => `<div style="border-bottom:1px solid #e2e8f0;padding:6px 0"><b>${p.montant} ${p.devise}</b> — ${p.nom || ""} ${p.prenom || ""} ${p.raison_sociale || ""} (${p.telephone || ""})<br /><small>${p.plan} · ${p.methode} · réf ${p.reference || "—"} · ${fmtDate(p.created_at)}</small><br /><button data-pay="confirmer" data-id="${p.id}" class="ghost">Confirmer</button> <button data-pay="refuser" data-id="${p.id}" class="ghost">Refuser</button></div>`).join("") || "<i>Aucun paiement à vérifier.</i>";
+  const st = $("payStatut").value || "a_verifier";
+  const j = await call("/api/admin/paiements?statut=" + st, {}, true);
+  const actions = st === "a_verifier";
+  $("aPays").innerHTML = (j.paiements || []).map((p) => `<div style="border-bottom:1px solid #e2e8f0;padding:6px 0"><b>${p.montant} ${p.devise}</b> — ${p.nom || ""} ${p.prenom || ""} ${p.raison_sociale || ""} (${p.telephone || ""})<br /><small>${p.plan} · ${p.methode} · réf ${p.reference || "—"} · ${p.statut} · ${fmtDate(p.created_at)}</small>${actions ? `<br /><button data-pay="confirmer" data-id="${p.id}" class="ghost">Confirmer</button> <button data-pay="refuser" data-id="${p.id}" class="ghost">Refuser</button>` : ""}</div>`).join("") || "<i>Aucun paiement.</i>";
   document.querySelectorAll("#aPays [data-pay]").forEach((b) => (b.onclick = async () => {
     try {
       const motif = b.dataset.pay === "refuser" ? prompt("Motif du refus :") || "" : "";
@@ -514,6 +518,7 @@ async function chargerPaiements() {
     } catch (e) { msg("payMsg", e.message); }
   }));
 }
+$("btnPays").onclick = chargerPaiements;
 async function chargerAudit() {
   const j = await call("/api/admin/audit", {}, true);
   $("aAudit").innerHTML = (j.journal || []).map((a) => `<div style="border-bottom:1px solid #e2e8f0;padding:5px 0"><b>${a.action}</b> par ${a.admin || "?"} — ${a.cible_type || ""} ${a.cible_id || ""}<br /><small>${fmtDate(a.created_at)} · ${JSON.stringify(a.details || {})}</small></div>`).join("") || "<i>Vide.</i>";

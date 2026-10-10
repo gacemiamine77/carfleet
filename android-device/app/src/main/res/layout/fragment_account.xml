@@ -42,6 +42,28 @@
                 android:hint="URL plateforme"
                 android:inputType="textUri" />
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnSrvSecu"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="🏛️ Sécurité" />
+
+                <Button
+                    android:id="@+id/btnSrvFlotte"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:text="🚚 Flotte" />
+            </LinearLayout>
+
             <EditText
                 android:id="@+id/etUser"
                 android:layout_width="match_parent"

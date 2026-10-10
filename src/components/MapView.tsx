@@ -43,7 +43,7 @@ interface RouteInfo {
 
 interface InfractionPoint {
   id: string; infraction: string; immatriculation?: string; carId?: string; conducteurNom?: string;
-  lat: number; lon: number; speed?: number; speedLimit?: number;
+  lat: number; lon: number; speed?: number; speedLimit?: number; excess?: number | null;
   statut?: string; recordedAt?: string;
 }
 
@@ -71,6 +71,34 @@ export function infractionColor(infraction: string): string {
     case "stationnement interdit": return "#ca8a04";
     default: return "#6b7280";
   }
+}
+
+export interface GraviteInfraction {
+  score: number;
+  niveau: "grave" | "moyen" | "faible";
+  couleur: string;
+  label: string;
+}
+
+// Même formule que /api/unites/infractions et l’app Android.
+export function scoreGraviteClient(infraction: string, exces?: number | null): number {
+  switch (infraction) {
+    case "circulation à contresens": return 100;
+    case "zone interdite": return 80;
+    case "conduite longue sans arrêt": return 50;
+    case "exces de vitesse": return 40 + Math.min(Number(exces) || 0, 60);
+    case "arrêt interdit":
+    case "stationnement interdit": return 30;
+    case "impossible de comparée": return 10;
+    default: return 20;
+  }
+}
+
+export function graviteInfraction(infraction: string, exces?: number | null): GraviteInfraction {
+  const score = scoreGraviteClient(infraction, exces);
+  if (score >= 80) return { score, niveau: "grave", couleur: "#dc2626", label: "Grave (≥ 80)" };
+  if (score >= 50) return { score, niveau: "moyen", couleur: "#f59e0b", label: "Moyenne (≥ 50)" };
+  return { score, niveau: "faible", couleur: "#16a34a", label: "Faible (< 50)" };
 }
 
 // Symbologie par type d'infraction (formes distinctes + légende)
@@ -511,39 +539,49 @@ export default function MapView({ geojson, selectedCar, onSelectCar, trails, car
     // Retire l'ancienne légende
     document.querySelectorAll(".inf-legend").forEach((el) => el.remove());
     if (!showInfractions || !infractions?.length) return;
-    const counts = new Map<string, number>();
+    const comptes = new Map<GraviteInfraction["niveau"], number>([
+      ["grave", 0],
+      ["moyen", 0],
+      ["faible", 0],
+    ]);
     for (const inf of infractions.slice(0, 300)) {
       if (!Number.isFinite(inf.lat) || !Number.isFinite(inf.lon)) continue;
       const st = inf.statut || "nouveau";
-      counts.set(inf.infraction, (counts.get(inf.infraction) || 0) + 1);
+      const gravite = graviteInfraction(inf.infraction, inf.excess);
+      comptes.set(gravite.niveau, (comptes.get(gravite.niveau) || 0) + 1);
       const sym = infractionSymbol(inf.infraction);
       const statutTxt = st === "traite" ? "✅ Traité" : st === "notifie" ? "Notifié" : "Nouveau";
       const dateTxt = inf.recordedAt ? new Date(inf.recordedAt).toLocaleString("fr-DZ") : "";
       const icon = L.divIcon({
         className: "",
-        html: `<div style="font-size:20px;line-height:20px;color:${sym.color};opacity:${st === "traite" ? 0.45 : 1};text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff;">${sym.glyph}</div>`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
+        html: `<div title="Gravité ${gravite.score}/100" style="width:22px;height:22px;border-radius:9999px;background:${gravite.couleur};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;line-height:1;opacity:${st === "traite" ? 0.45 : 1};">${sym.glyph}</div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
       });
       L.marker([inf.lat, inf.lon], { icon }).bindPopup(
         `<div style="font-size:12px;min-width:180px;">
           <b>${sym.glyph} ${inf.infraction}</b><br/>
           🚗 ${inf.immatriculation || inf.carId || "?"}${inf.conducteurNom ? `<br/>🧑‍✈️ ${inf.conducteurNom}` : ""}
           ${inf.speed != null ? `<br/>Vitesse: <b>${inf.speed} km/h</b>${inf.speedLimit != null && inf.speedLimit !== 9999 ? ` (limite ${inf.speedLimit})` : ""}` : ""}
+          <br/>Gravité: <b style="color:${gravite.couleur};">${gravite.score}/100 · ${gravite.label}</b>
           <br/>Statut: <b>${statutTxt}</b>
           ${dateTxt ? `<br/>${dateTxt}` : ""}
         </div>`
       ).addTo(layer);
     }
-    // Légende : un symbole par type + compteur (diagnostic : si 0 partout, les données n'arrivent pas)
+    // Légende : marqueurs colorés par gravité, pas seulement par type.
     const legend = new L.Control({ position: "bottomleft" });
     legend.onAdd = () => {
       const div = L.DomUtil.create("div", "inf-legend");
       div.style.cssText = "background:rgba(255,255,255,0.95);border:1px solid #ccc;border-radius:8px;padding:6px 8px;font-size:11px;box-shadow:0 1px 4px rgba(0,0,0,0.3);";
-      let html = `<b>🚨 Infractions (${[...counts.values()].reduce((a, b) => a + b, 0)})</b><br/>`;
-      for (const [type, n] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
-        const sym = infractionSymbol(type);
-        html += `<div><span style="color:${sym.color};font-size:14px;">${sym.glyph}</span> ${sym.label} <b>(${n})</b></div>`;
+      let html = `<b>🎯 Gravité (${[...comptes.values()].reduce((a, b) => a + b, 0)})</b><br/>`;
+      const legendes = [
+        { niveau: "grave" as const, couleur: "#dc2626", label: "Grave (≥ 80)" },
+        { niveau: "moyen" as const, couleur: "#f59e0b", label: "Moyenne (≥ 50)" },
+        { niveau: "faible" as const, couleur: "#16a34a", label: "Faible (< 50)" },
+      ];
+      for (const legende of legendes) {
+        html += `<div><span style="display:inline-block;width:10px;height:10px;border-radius:9999px;background:${legende.couleur};border:1px solid #fff;box-shadow:0 0 0 1px #cbd5e1;margin-right:4px;"></span>${legende.label} <b>(${comptes.get(legende.niveau) || 0})</b></div>`;
       }
       div.innerHTML = html;
       return div;

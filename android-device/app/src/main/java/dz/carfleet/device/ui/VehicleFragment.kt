@@ -48,7 +48,7 @@ class VehicleFragment : Fragment() {
                 if (mine != null) {
                     // si local vide ou désynchronisé, resync depuis serveur
                     if (!session.hasVehicle || session.carId != mine!!.carId) {
-                        session.saveVehicle(dz.carfleet.device.api.VehiculeInfo(mine!!.id, mine!!.carId, mine!!.immatriculation, null), mine!!.marque ?: session.marque, mine!!.modele ?: session.modele, mine!!.immatriculation)
+                        session.saveVehicle(dz.carfleet.device.api.VehiculeInfo(mine!!.id, mine!!.carId, mine!!.immatriculation, mine!!.numeroSerie), mine!!.marque ?: session.marque, mine!!.modele ?: session.modele, mine!!.immatriculation)
                     }
                     // sync chauffeur aussi pour que TrackingService envoie le bon conducteur
                     mine!!.chauffeur?.let { ch -> session.saveDriver(ch.nom ?: "", ch.prenom ?: "", ch.telephone ?: "", ch.numeroPermis) }
@@ -168,6 +168,11 @@ class VehicleFragment : Fragment() {
         spCat.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, cats).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
+        // N° de série du boîtier : pré-rempli (test), à remplacer par le vrai n° du dispositif réel.
+        val etSerial: EditText = view.findViewById(R.id.etSerial)
+        if (etSerial.text.isBlank()) {
+            etSerial.setText("VSN-" + UUID.randomUUID().toString().take(8).uppercase())
+        }
         if (session.hasVehicle) {
             tvSerial.text = "N° série : ${session.serial}\ncarId : ${session.carId}\n${session.marque} ${session.modele} (${session.immat})"
         }
@@ -180,7 +185,11 @@ class VehicleFragment : Fragment() {
                 tvErr.text = "Modèle et matricule requis"
                 return@setOnClickListener
             }
-            val serial = "VSN-" + UUID.randomUUID().toString().take(8).uppercase()
+            // N° saisi = boîtier réel ; vide = n° de test généré.
+            var serial = view.findViewById<EditText>(R.id.etSerial).text.toString().trim().uppercase().take(40)
+            if (serial.isEmpty()) {
+                serial = "VSN-" + UUID.randomUUID().toString().take(8).uppercase()
+            }
             tvErr.text = "Enregistrement…"
             ApiClient.init(session.baseUrl)
             lifecycleScope.launch {
