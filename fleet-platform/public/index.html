@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fleet Platform — Suivi flotte et véhicules privés</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body{font-family:system-ui,sans-serif;margin:0;background:#eef2f7;color:#0f172a}
+    header{background:#0f3d2e;color:#fff;padding:14px 18px}
+    main{max-width:1100px;margin:auto;padding:14px}
+    .card{background:#fff;border-radius:12px;padding:12px;margin-bottom:12px;box-shadow:0 1px 4px #0001}
+    input,select,button,textarea{padding:9px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px}
+    button{background:#0f3d2e;color:#fff;font-weight:700;cursor:pointer;border:0}
+    button.ghost{background:#fff;color:#0f3d2e;border:1px solid #0f3d2e}
+    .row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:150px}
+    #map{height:55vh;min-height:320px;border-radius:12px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    td,th{padding:7px;border-bottom:1px solid #e2e8f0;text-align:left}
+    .hidden{display:none!important}
+    .stolen{color:#b91c1c;font-weight:700}
+  </style>
+</head>
+<body>
+<header>
+  <h1 style="margin:0;font-size:18px">🚚 Fleet Platform</h1>
+  <div style="font-size:12px;color:#bbf7d0">Flotte entreprise / véhicule privé — base séparée de la Sécurité publique</div>
+</header>
+<main>
+  <section class="card" id="authCard">
+    <h2 style="margin-top:0">Compte flotte</h2>
+    <div class="row">
+      <label>Utilisateur<input id="username" autocomplete="username" /></label>
+      <label>Mot de passe<input id="password" type="password" autocomplete="current-password" /></label>
+      <label>Téléphone<input id="telephone" autocomplete="tel" /></label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="login">Se connecter</button>
+      <button id="register" class="ghost">Créer un compte</button>
+      <button id="logout" class="ghost hidden">Déconnexion</button>
+    </div>
+    <p id="authMsg" style="font-size:13px"></p>
+  </section>
+
+  <section class="card hidden" id="fleetCard">
+    <h2 style="margin-top:0">Véhicules — <span id="count">0</span></h2>
+    <div class="row">
+      <label>Immatriculation<input id="immat" /></label>
+      <label>Marque<input id="marque" /></label>
+      <label>Modèle<input id="modele" /></label>
+      <label>Couleur<input id="couleur" /></label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="addVehicle">Ajouter</button>
+      <button id="reload" class="ghost">Actualiser</button>
+    </div>
+    <div style="overflow:auto;margin-top:8px">
+      <table><thead><tr><th>Véhicule</th><th>Chauffeur</th><th>Position</th><th>Antivol</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+    </div>
+  </section>
+
+  <section class="card hidden" id="mapCard">
+    <h2 style="margin-top:0">Carte — <span id="mapTitle">temps réel</span></h2>
+    <div id="map"></div>
+    <div class="row" style="margin-top:8px">
+      <button id="showLive" class="ghost">Temps réel</button>
+      <button id="showHistory" class="ghost">Historique 24 h</button>
+    </div>
+  </section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

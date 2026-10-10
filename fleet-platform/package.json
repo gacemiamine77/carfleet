@@ -1,0 +1,21 @@
+{
+  "name": "fleet-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plateforme flotte/privée totalement séparée : ingestion GPS, véhicules, chauffeurs, positions, antivol.",
+  "scripts": {
+    "dev": "node --watch server.mjs",
+    "start": "node server.mjs",
+    "migrate": "node scripts/migrate.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check server.mjs && node --check src/db.mjs && node --check src/auth.mjs && node --check src/http.mjs && node --check src/validation.mjs && node --check src/routes/auth.mjs && node --check src/routes/vehicles.mjs && node --check src/routes/drivers.mjs && node --check src/routes/track.mjs && node --check src/routes/fleet.mjs && node --check scripts/migrate.mjs"
+  },
+  "dependencies": {
+    "dotenv": "17.3.1",
+    "pg": "8.20.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
