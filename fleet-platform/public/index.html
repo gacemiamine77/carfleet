@@ -286,10 +286,11 @@
           <div><button id="btnComptes" class="ghost">Filtrer</button></div>
         </div>
         <div style="overflow:auto;margin-top:8px"><table><thead><tr><th>Compte</th><th>Type</th><th>Statut</th><th>Forfait / paiement</th><th></th></tr></thead><tbody id="aRows"></tbody></table></div>
+        <p class="msg" id="compteMsg"></p>
       </div>
     </div>
     <div id="a-forfaits" class="hidden"><div class="card"><h2>Forfaits</h2><div id="aPlans" style="font-size:12px"></div><h3>Nouveau / modifier</h3><div class="row"><label>Nom<input id="plNom" /></label><label>Type<select id="plType"><option value="particulier">Particulier</option><option value="entreprise">Entreprise</option></select></label><label>Prix<input id="plPrix" type="number" /></label><label>Durée<select id="plDuree"><option value="mensuel">Mensuelle</option><option value="trimestriel">Trimestrielle</option><option value="annuel">Annuelle</option></select></label><label>Véhicules max<input id="plLimite" type="number" placeholder="vide = illimité" /></label><label>Géorepérage<select id="plGeo"><option value="0">Non</option><option value="1">Oui</option></select></label></div><div class="row"><button id="btnPlanSave">Enregistrer</button></div><p class="msg" id="planMsg"></p></div></div>
-    <div id="a-paiements" class="hidden"><div class="card"><h2>Paiements à vérifier</h2><div id="aPays" style="font-size:12px"></div></div></div>
+    <div id="a-paiements" class="hidden"><div class="card"><h2>Paiements à vérifier</h2><div id="aPays" style="font-size:12px"></div><p class="msg" id="payMsg"></p></div></div>
     <div id="a-audit" class="hidden"><div class="card"><h2>Journal d’audit</h2><div id="aAudit" style="font-size:12px"></div></div></div>
     <div id="a-reglages" class="hidden"><div class="card"><h2>Réglages</h2><label style="flex-direction:row;align-items:center;gap:8px"><input id="setAuto" type="checkbox" style="width:auto" /> Activation automatique après paiement confirmé</label><button id="btnSettings" class="ghost">Enregistrer</button></div></div>
   </section>

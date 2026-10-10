@@ -110,12 +110,28 @@ export async function gererCompte(req, res, auth) {
     const motif = body.motif ? String(body.motif).slice(0, 500) : null;
     if (action === "valider") {
       const sub = await dernierAbonnement(ownerId);
-      if (!sub || sub.statut !== "en_attente_validation") {
-        return sendJson(res, 400, { error: "Le compte n'est pas en attente de validation" });
+      if (!sub) {
+        return sendJson(res, 400, { error: "Aucun abonnement : le compte doit d'abord choisir un forfait" });
       }
+      if (sub.statut === "actif") {
+        await query(`UPDATE fleet_owners SET statut_compte = 'actif', motif = NULL WHERE id = $1`, [ownerId]);
+        return sendJson(res, 200, { ok: true, dejaActif: true });
+      }
+      const pay = (
+        await query(`SELECT statut FROM fleet_payments WHERE subscription_id = $1 ORDER BY id DESC LIMIT 1`, [sub.id])
+      ).rows[0];
+      if (!pay || pay.statut !== "confirme") {
+        return sendJson(res, 400, { error: `Paiement non confirmé (état : ${pay ? pay.statut : "aucun"}). Confirmez d'abord le paiement.` });
+      }
+      const debut = sub.debut_at ? new Date(sub.debut_at) : new Date();
+      const fin = sub.fin_at ? new Date(sub.fin_at) : finAbonnement(debut, sub.plan_duree);
+      await query(`UPDATE fleet_subscriptions SET statut = 'actif', debut_at = $1, fin_at = $2, updated_at = now() WHERE id = $3`, [
+        debut,
+        fin,
+        sub.id
+      ]);
       await query(`UPDATE fleet_owners SET statut_compte = 'actif', motif = NULL WHERE id = $1`, [ownerId]);
-      await query(`UPDATE fleet_subscriptions SET statut = 'actif', updated_at = now() WHERE owner_id = $1 AND statut = 'en_attente_validation'`, [ownerId]);
-      await notifier(ownerId, { type: "activation", titre: "Compte activé", corps: `Votre formule ${sub.plan_nom} est active jusqu'au ${new Date(sub.fin_at).toLocaleDateString("fr-FR")}.` });
+      await notifier(ownerId, { type: "activation", titre: "Compte activé", corps: `Votre formule ${sub.plan_nom} est active jusqu'au ${new Date(fin).toLocaleDateString("fr-FR")}.` });
     } else if (action === "refuser") {
       if (!motif) return sendJson(res, 400, { error: "Motif du refus requis" });
       await query(`UPDATE fleet_owners SET statut_compte = 'refuse', motif = $1 WHERE id = $2`, [motif, ownerId]);
