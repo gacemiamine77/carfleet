@@ -7,12 +7,16 @@ import { applyCors, rateLimit, sendJson } from "./src/http.mjs";
 import { login, logout as logoutProprio, profile, register } from "./src/routes/auth.mjs";
 import {
   comptes,
+  changerMotDePasse,
+  creerAdmin,
   creerAbonnement,
   expirations,
   forfaits,
+  gererAdmin,
   gererCompte,
   gererPaiement,
   journal,
+  listeAdmins,
   login as loginAdmin,
   logout as logoutAdmin,
   paiements,
@@ -127,6 +131,10 @@ async function router(req, res) {
     return loginAdmin(req, res);
   }
   if (route === "POST /api/admin/auth/logout") return logoutAdmin(req, res);
+  if (route === "POST /api/admin/auth/password") return changerMotDePasse(req, res);
+  if (route === "GET /api/admin/admins") return listeAdmins(req, res);
+  if (route === "POST /api/admin/admins") return creerAdmin(req, res);
+  if (route === "PATCH /api/admin/admins") return gererAdmin(req, res);
   if (route === "GET /api/admin/stats") return statsAdmin(req, res);
   if (route === "GET /api/admin/comptes") return comptes(req, res);
   if (route === "PATCH /api/admin/comptes") return gererCompte(req, res);

@@ -1,5 +1,6 @@
 import { query } from "../db.mjs";
-import { adminLogin, adminLogout, bearerToken, requireAdmin } from "../admin_auth.mjs";
+import { adminLogin, adminLogout, bearerToken, hashPassword, requireAdmin, requireSuperAdmin } from "../admin_auth.mjs";
+import { verifyPassword } from "../auth.mjs";
 import { readJson, sendJson } from "../http.mjs";
 import { audit, dernierAbonnement, finAbonnement, notifier, setting } from "../lifecycle.mjs";
 import { text } from "../validation.mjs";
@@ -379,6 +380,120 @@ export async function expirations(req, res, auth) {
   }
   await audit(admin.id, "maintenance_expirations", null, null, { traites: rows.length });
   return sendJson(res, 200, { ok: true, traites: rows.length });
+}
+
+// POST /api/admin/auth/password {ancienMotDePasse, nouveauMotDePasse} — tout admin connecté.
+export async function changerMotDePasse(req, res, auth) {
+  const admin = auth || (await requireAdmin(req));
+  if (!admin) return sendJson(res, 401, { error: "Non authentifié" });
+  try {
+    const body = await readJson(req);
+    const ancien = String(body.ancienMotDePasse || body.oldPassword || "");
+    const nouveau = String(body.nouveauMotDePasse || body.newPassword || body.password || "");
+    if (nouveau.length < 10) return sendJson(res, 400, { error: "Mot de passe : 10 caractères minimum" });
+    const { rows } = await query(`SELECT password_hash FROM fleet_admins WHERE id = $1 LIMIT 1`, [admin.id]);
+    if (!rows.length || !verifyPassword(ancien, rows[0].password_hash)) {
+      return sendJson(res, 401, { error: "Ancien mot de passe incorrect" });
+    }
+    await query(`UPDATE fleet_admins SET password_hash = $1 WHERE id = $2`, [hashPassword(nouveau), admin.id]);
+    await query(`DELETE FROM fleet_admin_sessions WHERE admin_id = $1`, [admin.id]);
+    await audit(admin.id, "changement_mot_de_passe", "admin", admin.id, {});
+    return sendJson(res, 200, { ok: true, message: "Mot de passe redéfini, reconnectez-vous." });
+  } catch (error) {
+    return sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
+async function resteSuperAdminApres(idExclu) {
+  const { rows } = await query(
+    `SELECT COUNT(*)::int AS n FROM fleet_admins WHERE role = 'superadmin' AND actif AND id <> $1`,
+    [idExclu]
+  );
+  return (rows[0]?.n || 0) > 0;
+}
+
+// GET /api/admin/admins — superadmin : liste (sans les hash).
+export async function listeAdmins(req, res, auth) {
+  const admin = auth || (await requireSuperAdmin(req));
+  if (!admin) return sendJson(res, 403, { error: "Réservé au super-administrateur" });
+  const { rows } = await query(
+    `SELECT id, username, role, actif, created_at FROM fleet_admins ORDER BY id`
+  );
+  return sendJson(res, 200, { admins: rows });
+}
+
+// POST /api/admin/admins {username, password, role?} — superadmin crée un admin.
+export async function creerAdmin(req, res, auth) {
+  const admin = auth || (await requireSuperAdmin(req));
+  if (!admin) return sendJson(res, 403, { error: "Réservé au super-administrateur" });
+  try {
+    const body = await readJson(req);
+    const username = text(body.username, 64, { required: true });
+    const password = String(body.password || "");
+    const role = body.role === "superadmin" ? "superadmin" : "admin";
+    if (password.length < 10) return sendJson(res, 400, { error: "Mot de passe : 10 caractères minimum" });
+    const exists = await query(`SELECT id FROM fleet_admins WHERE username = $1 LIMIT 1`, [username]);
+    if (exists.rowCount) return sendJson(res, 409, { error: "Nom d'utilisateur déjà pris" });
+    const { rows } = await query(
+      `INSERT INTO fleet_admins(username, password_hash, role, actif) VALUES($1,$2,$3,TRUE) RETURNING id, username, role, actif, created_at`,
+      [username, hashPassword(password), role]
+    );
+    await audit(admin.id, "creation_admin", "admin", rows[0].id, { username, role });
+    return sendJson(res, 200, { ok: true, admin: rows[0] });
+  } catch (error) {
+    return sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
+// PATCH /api/admin/admins {id, role?, actif?, password?} — superadmin gère.
+// Protège : pas d'auto-rétrogradation/désactivation, toujours ≥1 superadmin actif.
+export async function gererAdmin(req, res, auth) {
+  const admin = auth || (await requireSuperAdmin(req));
+  if (!admin) return sendJson(res, 403, { error: "Réservé au super-administrateur" });
+  try {
+    const body = await readJson(req);
+    const id = Number(body.id);
+    if (!id) return sendJson(res, 400, { error: "id requis" });
+    const cible = (await query(`SELECT id, username, role, actif FROM fleet_admins WHERE id = $1 LIMIT 1`, [id])).rows[0];
+    if (!cible) return sendJson(res, 404, { error: "Administrateur introuvable" });
+    const changements = {};
+    if (body.role !== undefined) {
+      if (body.role !== "admin" && body.role !== "superadmin") return sendJson(res, 400, { error: "Rôle invalide" });
+      if (id === admin.id && body.role !== "superadmin") {
+        return sendJson(res, 400, { error: "Vous ne pouvez pas retirer votre propre rôle superadmin" });
+      }
+      if (cible.role === "superadmin" && body.role !== "superadmin" && !(await resteSuperAdminApres(id))) {
+        return sendJson(res, 400, { error: "Refusé : il faut toujours au moins un superadmin actif" });
+      }
+      changements.role = body.role;
+    }
+    if (body.actif !== undefined) {
+      if (id === admin.id && body.actif === false) {
+        return sendJson(res, 400, { error: "Vous ne pouvez pas désactiver votre propre compte" });
+      }
+      if (cible.role === "superadmin" && body.actif === false && !(await resteSuperAdminApres(id))) {
+        return sendJson(res, 400, { error: "Refusé : il faut toujours au moins un superadmin actif" });
+      }
+      changements.actif = Boolean(body.actif);
+    }
+    if (body.password !== undefined) {
+      if (String(body.password).length < 10) return sendJson(res, 400, { error: "Mot de passe : 10 caractères minimum" });
+      changements.password_hash = hashPassword(String(body.password));
+    }
+    if (!Object.keys(changements).length) return sendJson(res, 400, { error: "Rien à changer" });
+    const sets = Object.keys(changements).map((k, i) => `${k} = $${i + 2}`).join(", ");
+    const { rows } = await query(
+      `UPDATE fleet_admins SET ${sets} WHERE id = $1 RETURNING id, username, role, actif, created_at`,
+      [id, ...Object.values(changements)]
+    );
+    if (changements.password_hash || changements.actif === false) {
+      await query(`DELETE FROM fleet_admin_sessions WHERE admin_id = $1`, [id]);
+    }
+    await audit(admin.id, "gestion_admin", "admin", id, { changements: Object.keys(changements) });
+    return sendJson(res, 200, { ok: true, admin: rows[0] });
+  } catch (error) {
+    return sendJson(res, 500, { error: String(error.message || error) });
+  }
 }
 
 // GET /api/admin/reglages — PATCH {activationAuto}

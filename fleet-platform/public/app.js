@@ -440,11 +440,62 @@ $("btnAdminLogin").onclick = async () => {
 };
 async function entrerAdmin() {
   show("view-admin");
-  await Promise.all([chargerStats(), chargerComptes(), chargerPlansAdmin(), chargerPaiements(), chargerAudit(), chargerReglages()]);
+  await Promise.all([chargerStats(), chargerComptes(), chargerPlansAdmin(), chargerPaiements(), chargerAudit(), chargerReglages(), chargerAdmins()]);
 }
+async function chargerAdmins() {
+  try {
+    const j = await call("/api/admin/admins", {}, true);
+    $("aAdmins").innerHTML = j.admins.map((a) => `<tr><td>${a.username}</td><td>${a.role}</td><td>${a.actif ? "oui" : "non"}</td><td>${new Date(a.created_at).toLocaleDateString("fr-DZ")}</td><td style="white-space:nowrap">
+      <button data-adm="${a.id}" data-role="${a.role === "superadmin" ? "admin" : "superadmin"}" class="ghost">⇄ ${a.role === "superadmin" ? "admin" : "superadmin"}</button>
+      <button data-adm="${a.id}" data-actif="${a.actif ? 0 : 1}" class="ghost">${a.actif ? "Désactiver" : "Activer"}</button>
+      <button data-adm="${a.id}" data-reset="1" class="ghost">Nouv. MDP</button>
+    </td></tr>`).join("") || `<tr><td colspan="5">Aucun administrateur.</td></tr>`;
+  } catch (e) {
+    $("aAdmins").innerHTML = `<tr><td colspan="5">${e.message} (réservé superadmin ?)</td></tr>`;
+  }
+}
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest ? e.target.closest("button[data-adm]") : null;
+  if (!b) return;
+  const id = Number(b.dataset.adm);
+  try {
+    if (b.dataset.reset) {
+      const pwd = window.prompt("Nouveau mot de passe pour cet admin (10+ caractères) :");
+      if (!pwd) return;
+      await call("/api/admin/admins", { method: "PATCH", body: JSON.stringify({ id, password: pwd }) }, true);
+      msg("adminsMsg", "Mot de passe redéfini.", true);
+    } else if (b.dataset.role) {
+      await call("/api/admin/admins", { method: "PATCH", body: JSON.stringify({ id, role: b.dataset.role }) }, true);
+      msg("adminsMsg", "Rôle mis à jour.", true);
+    } else if (b.dataset.actif !== undefined) {
+      await call("/api/admin/admins", { method: "PATCH", body: JSON.stringify({ id, actif: b.dataset.actif === "1" }) }, true);
+      msg("adminsMsg", "Statut mis à jour.", true);
+    }
+    await chargerAdmins();
+  } catch (err) { msg("adminsMsg", err.message); }
+});
+document.addEventListener("DOMContentLoaded", () => {
+  const btnC = document.getElementById("btnAdminCreate");
+  if (btnC) btnC.onclick = async () => {
+    try {
+      await call("/api/admin/admins", { method: "POST", body: JSON.stringify({ username: $("naUser").value.trim(), password: $("naPass").value, role: $("naRole").value }) }, true);
+      $("naUser").value = ""; $("naPass").value = "";
+      msg("adminsMsg", "Administrateur créé.", true);
+      await chargerAdmins();
+    } catch (e) { msg("adminsMsg", e.message); }
+  };
+  const btnP = document.getElementById("btnAdminPw");
+  if (btnP) btnP.onclick = async () => {
+    try {
+      await call("/api/admin/auth/password", { method: "POST", body: JSON.stringify({ ancienMotDePasse: $("pwAdmOld").value, nouveauMotDePasse: $("pwAdmNew").value }) }, true);
+      $("pwAdmOld").value = ""; $("pwAdmNew").value = "";
+      msg("adminPwMsg", "Mot de passe redéfini, reconnectez-vous.", true);
+    } catch (e) { msg("adminPwMsg", e.message); }
+  };
+});
 document.querySelectorAll("#adminTabs button").forEach((b) => (b.onclick = () => {
   document.querySelectorAll("#adminTabs button").forEach((x) => x.classList.toggle("on", x === b));
-  ["dash", "comptes", "forfaits", "paiements", "audit", "reglages"].forEach((v) => $("a-" + v).classList.toggle("hidden", v !== b.dataset.v));
+  ["dash", "comptes", "forfaits", "paiements", "audit", "admins", "motdepasse", "reglages"].forEach((v) => $("a-" + v).classList.toggle("hidden", v !== b.dataset.v));
 }));
 async function chargerStats() {
   const j = await call("/api/admin/stats", {}, true);

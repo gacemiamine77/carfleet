@@ -3,11 +3,12 @@ import "dotenv/config";
 import { hashPassword } from "../src/auth.mjs";
 import { newTotpSecret, otpauthUrl } from "../src/totp.mjs";
 
-// Gestion du compte administrateur principal (accès serveur requis = procédure de récupération).
+// Gestion des administrateurs (accès serveur requis = procédure de récupération).
 // Usage :
 //   node scripts/admin.mjs create <username> <password>
 //   node scripts/admin.mjs totp <username>      (affiche le secret + URL à enregistrer dans l'app d'authentification)
 //   node scripts/admin.mjs reset-password <username> <nouveau-mot-de-passe>
+//   node scripts/admin.mjs promote <username> [superadmin|admin]   (rôle, défaut superadmin)
 
 const url = process.env.FLEET_DATABASE_URL;
 if (!url) {
@@ -57,8 +58,20 @@ async function main() {
     }
     await pool.query(`DELETE FROM fleet_admin_sessions WHERE admin_id = (SELECT id FROM fleet_admins WHERE username = $1)`, [username]);
     console.log(`✔ mot de passe réinitialisé pour ${username} (sessions révoquées).`);
+  } else if (command === "promote") {
+    const role = secret2 === "admin" ? "admin" : "superadmin";
+    if (!username) {
+      console.error("Usage : node scripts/admin.mjs promote <username> [superadmin|admin]");
+      process.exit(1);
+    }
+    const updated = await pool.query(`UPDATE fleet_admins SET role = $1 WHERE username = $2`, [role, username]);
+    if (!updated.rowCount) {
+      console.error("Administrateur introuvable.");
+      process.exit(1);
+    }
+    console.log(`✔ ${username} est maintenant ${role}.`);
   } else {
-    console.error("Commande inconnue : create | totp | reset-password");
+    console.error("Commande inconnue : create | totp | reset-password | promote");
     process.exit(1);
   }
   await pool.end();

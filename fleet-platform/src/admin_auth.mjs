@@ -17,14 +17,24 @@ export async function requireAdmin(req) {
   const token = bearerToken(req.headers.authorization);
   if (!token) return null;
   const { rows } = await query(
-    `SELECT ad.id, ad.username, ad.actif
+    `SELECT ad.id, ad.username, ad.actif, ad.role
        FROM fleet_admin_sessions s
        JOIN fleet_admins ad ON ad.id = s.admin_id
       WHERE s.token = $1 AND s.expires_at > now()`,
     [token]
   );
   if (!rows.length || !rows[0].actif) return null;
-  return { id: rows[0].id, username: rows[0].username };
+  return { id: rows[0].id, username: rows[0].username, role: rows[0].role || "admin" };
+}
+
+export function isSuperAdmin(admin) {
+  return Boolean(admin) && admin.role === "superadmin";
+}
+
+export async function requireSuperAdmin(req) {
+  const admin = await requireAdmin(req);
+  if (!admin || !isSuperAdmin(admin)) return null;
+  return admin;
 }
 
 export async function adminLogin(username, password, code) {
@@ -37,7 +47,7 @@ export async function adminLogin(username, password, code) {
   const token = randomBytes(48).toString("hex");
   const expiresAt = new Date(Date.now() + adminSessionDays() * 24 * 3600 * 1000);
   await query(`INSERT INTO fleet_admin_sessions(token, admin_id, expires_at) VALUES($1,$2,$3)`, [token, admin.id, expiresAt]);
-  return { token, expiresAt, username: admin.username, doubleAuth: Boolean(admin.totp_secret) };
+  return { token, expiresAt, username: admin.username, role: admin.role || "admin", doubleAuth: Boolean(admin.totp_secret) };
 }
 
 export async function adminLogout(token) {
