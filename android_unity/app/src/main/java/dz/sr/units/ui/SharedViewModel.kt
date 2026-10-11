@@ -77,7 +77,10 @@ class SharedViewModel(app: Application) : AndroidViewModel(app) {
         var tri: String = "recent",
         var lat: Double? = null,
         var lon: Double? = null,
-        var rayon: Int = 10000
+        var rayon: Int = 10000,
+        var infraction: String = "all",
+        var categorie: String = "all",
+        var statut: String = "all"
     )
     val filtre = MutableLiveData(FiltreUI())
 
@@ -98,7 +101,8 @@ class SharedViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val ff = filtre.value ?: FiltreUI()
                 val r = repo.refreshInfractions(
-                    Repository.Filtre(ff.periode, ff.q, ff.tri, ff.lat, ff.lon, ff.rayon)
+                    Repository.Filtre(ff.periode, ff.q, ff.tri, ff.lat, ff.lon, ff.rayon,
+                        ff.infraction, ff.categorie, ff.statut)
                 )
                 if (!session.isLogged) return@withLock          // déconnecté pendant l'appel
                 if (r.authExpired) { _authExpired.value = true; return@withLock }
@@ -117,9 +121,12 @@ class SharedViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Tri local (cache hors-ligne) : même ordre que le serveur. */
+    /** Tri local (cache hors-ligne) : mêmes filtres + ordre que le serveur. */
     private fun triLocal(items: List<Infraction>, f: FiltreUI): List<Infraction> {
         var list = items
+        if (f.infraction != "all") list = list.filter { it.infraction == f.infraction }
+        if (f.categorie != "all") list = list.filter { (it.categorieVehicule ?: "leger") == f.categorie }
+        if (f.statut != "all") list = list.filter { it.statut == f.statut }
         if (f.q.isNotBlank()) {
             val q = f.q.lowercase()
             list = list.filter {

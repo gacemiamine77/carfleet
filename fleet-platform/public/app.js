@@ -510,12 +510,9 @@ async function chargerPaiements() {
   const actions = st === "a_verifier";
   $("aPays").innerHTML = (j.paiements || []).map((p) => `<div style="border-bottom:1px solid #e2e8f0;padding:6px 0"><b>${p.montant} ${p.devise}</b> — ${p.nom || ""} ${p.prenom || ""} ${p.raison_sociale || ""} (${p.telephone || ""})<br /><small>${p.plan} · ${p.methode} · réf ${p.reference || "—"} · ${p.statut} · ${fmtDate(p.created_at)}</small>${actions ? `<br /><button data-pay="confirmer" data-id="${p.id}" class="ghost">Confirmer</button> <button data-pay="refuser" data-id="${p.id}" class="ghost">Refuser</button>` : ""}</div>`).join("") || "<i>Aucun paiement.</i>";
   document.querySelectorAll("#aPays [data-pay]").forEach((b) => (b.onclick = async () => {
-    try {
-      const motif = b.dataset.pay === "refuser" ? prompt("Motif du refus :") || "" : "";
-      await call("/api/admin/paiements", { method: "PATCH", body: JSON.stringify({ paymentId: Number(b.dataset.id), action: b.dataset.pay, motif }) }, true);
-      msg("payMsg", "Paiement traité.", true);
-      await chargerPaiements(); await chargerComptes(); await chargerStats();
-    } catch (e) { msg("payMsg", e.message); }
+    const motif = b.dataset.pay === "refuser" ? prompt("Motif du refus :") || "" : "";
+    await call("/api/admin/paiements", { method: "PATCH", body: JSON.stringify({ paymentId: Number(b.dataset.id), action: b.dataset.pay, motif }) }, true);
+    await chargerPaiements(); await chargerComptes(); await chargerStats();
   }));
 }
 $("btnPays").onclick = chargerPaiements;

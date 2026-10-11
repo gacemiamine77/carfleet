@@ -78,7 +78,8 @@ data class HistPoint(
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     val speed: Double? = null,
-    val recordedAt: String? = null,
+    val heading: Double? = null,
+    @SerializedName("recorded_at") val recordedAt: String? = null,
     @SerializedName("distance_m") val distanceM: Double? = null
 )
 

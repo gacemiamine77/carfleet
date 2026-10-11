@@ -40,6 +40,27 @@
                 android:layout_marginEnd="6dp"
                 android:textColor="#1f2937" />
 
+            <Spinner
+                android:id="@+id/spType"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:textColor="#1f2937" />
+
+            <Spinner
+                android:id="@+id/spCat"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:textColor="#1f2937" />
+
+            <Spinner
+                android:id="@+id/spStatut"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:textColor="#1f2937" />
+
             <Button
                 android:id="@+id/btnMoi"
                 android:layout_width="wrap_content"

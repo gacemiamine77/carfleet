@@ -40,7 +40,10 @@ class Repository(
         val tri: String = "recent",    // recent | gravite | distance
         val lat: Double? = null,
         val lon: Double? = null,
-        val rayon: Int = 10000
+        val rayon: Int = 10000,
+        val infraction: String = "all",
+        val categorie: String = "all",
+        val statut: String = "all"
     )
 
     /**
@@ -53,6 +56,9 @@ class Repository(
 
             val res = ApiClient.service().infractions(
                 auth,
+                infraction = f.infraction.takeIf { it != "all" },
+                categorie = f.categorie.takeIf { it != "all" },
+                statut = f.statut.takeIf { it != "all" },
                 periode = f.periode.takeIf { it != "all" },
                 q = f.q.takeIf { it.isNotBlank() },
                 lat = f.lat, lon = f.lon,

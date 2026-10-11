@@ -562,6 +562,8 @@ export default function Home() {
             carSpeeds={carSpeeds}
             customRoads={null}
             onMapClick={handleMapClick}
+            infractions={mapInfractions}
+            showInfractions={true}
             showTrails={showTrails}
           />
         </main>

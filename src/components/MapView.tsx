@@ -80,18 +80,11 @@ export interface GraviteInfraction {
   label: string;
 }
 
-// Même formule que /api/unites/infractions et l’app Android.
+import { scoreGravite } from "@/lib/gravite";
+
+// Formule canonique partagée (@/lib/gravite) — réexport unifié.
 export function scoreGraviteClient(infraction: string, exces?: number | null): number {
-  switch (infraction) {
-    case "circulation à contresens": return 100;
-    case "zone interdite": return 80;
-    case "conduite longue sans arrêt": return 50;
-    case "exces de vitesse": return 40 + Math.min(Number(exces) || 0, 60);
-    case "arrêt interdit":
-    case "stationnement interdit": return 30;
-    case "impossible de comparée": return 10;
-    default: return 20;
-  }
+  return scoreGravite(infraction, exces);
 }
 
 export function graviteInfraction(infraction: string, exces?: number | null): GraviteInfraction {

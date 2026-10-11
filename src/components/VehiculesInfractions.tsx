@@ -19,19 +19,7 @@ interface Groupe {
   lastAt: string; lat: number; lon: number; derniereInfractionId: number;
 }
 
-function score(infraction: string, exces?: number): number {
-  switch (infraction) {
-    case "circulation à contresens": return 100;
-    case "zone interdite": return 80;
-    case "conduite longue sans arrêt": return 50;
-    case "exces de vitesse": return 40 + Math.min(exces || 0, 60);
-    case "arrêt interdit":
-    case "stationnement interdit": return 30;
-    case "impossible de comparée": return 10;
-    default: return 20;
-  }
-}
-const estGrave = (infraction: string, exces?: number) => score(infraction, exces) >= 50;
+import { prioritaire as estGrave } from "@/lib/gravite";
 
 function libelle(g: Groupe): string {
   const veh = [g.marque, g.modele, g.couleur].filter((x) => x && x.trim()).join(" ");

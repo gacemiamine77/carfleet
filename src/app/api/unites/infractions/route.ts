@@ -6,19 +6,8 @@ import { resolveWilayaForPosition } from "@/lib/unites";
 
 export const dynamic = "force-dynamic";
 
-// Score de gravité (même formule côté Android pour le tri local)
-export function scoreGravite(infraction: string, exces: number | null): number {
-  switch (infraction) {
-    case "circulation à contresens": return 100;
-    case "zone interdite": return 80;
-    case "conduite longue sans arrêt": return 50;
-    case "exces de vitesse": return 40 + Math.min(Number(exces) || 0, 60);
-    case "arrêt interdit":
-    case "stationnement interdit": return 30;
-    case "impossible de comparée": return 10;
-    default: return 20;
-  }
-}
+import { scoreGravite } from "@/lib/gravite";
+// (formule canonique partagée : MapView, MiniMap, Véhicules, Android)
 
 function havKm(a: number, b: number, c: number, d: number): number {
   const R = 6371, t = Math.PI / 180;

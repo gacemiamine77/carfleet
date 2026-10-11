@@ -55,6 +55,23 @@ class AlertsFragment : Fragment() {
             listOf("Tri : récent", "Tri : gravité", "Tri : distance")).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
+        val spType = view.findViewById<Spinner>(R.id.spType)
+        val types = listOf("Tous types", "exces de vitesse", "zone interdite",
+            "circulation à contresens", "conduite longue sans arrêt",
+            "arrêt interdit", "stationnement interdit")
+        spType.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, types).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        val spCat = view.findViewById<Spinner>(R.id.spCat)
+        val cats = listOf("Tous véhicules", "leger", "lourd", "transport", "transport_dangereux")
+        spCat.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, cats).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        val spStatut = view.findViewById<Spinner>(R.id.spStatut)
+        val statuts = listOf("Tous statuts", "nouveau", "notifie", "traite")
+        spStatut.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, statuts).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
         spRayon.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item,
             listOf("5 km", "10 km", "20 km")).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -65,6 +82,9 @@ class AlertsFragment : Fragment() {
         val cur = vm.filtre.value ?: FiltreUI()
         spPeriode.setSelection(when (cur.periode) { "today" -> 1; "7d" -> 2; "30d" -> 3; else -> 0 })
         spTri.setSelection(when (cur.tri) { "gravite" -> 1; "distance" -> 2; else -> 0 })
+        spType.setSelection(types.indexOf(cur.infraction).takeIf { it >= 0 } ?: 0)
+        spCat.setSelection(cats.indexOf(cur.categorie).takeIf { it >= 0 } ?: 0)
+        spStatut.setSelection(statuts.indexOf(cur.statut).takeIf { it >= 0 } ?: 0)
         etSearch.setText(cur.q)
         moiOn = cur.lat != null
         majBoutonMoi(btnMoi, spRayon)
@@ -78,6 +98,15 @@ class AlertsFragment : Fragment() {
             appliquer(view, mapOf("tri" to when (spTri.selectedItemPosition) {
                 1 -> "gravite"; 2 -> "distance"; else -> "recent"
             }))
+        }
+        spType.onItemSelectedListener = posListener {
+            appliquer(view, mapOf("infraction" to if (spType.selectedItemPosition == 0) "all" else types[spType.selectedItemPosition]))
+        }
+        spCat.onItemSelectedListener = posListener {
+            appliquer(view, mapOf("categorie" to if (spCat.selectedItemPosition == 0) "all" else cats[spCat.selectedItemPosition]))
+        }
+        spStatut.onItemSelectedListener = posListener {
+            appliquer(view, mapOf("statut" to if (spStatut.selectedItemPosition == 0) "all" else statuts[spStatut.selectedItemPosition]))
         }
         spRayon.onItemSelectedListener = posListener {
             if (moiOn) appliquer(view, mapOf("rayon" to when (spRayon.selectedItemPosition) {
@@ -124,6 +153,9 @@ class AlertsFragment : Fragment() {
                 "rayon" -> f.rayon = v as Int
                 "lat" -> f.lat = v as Double?
                 "lon" -> f.lon = v as Double?
+                "infraction" -> f.infraction = v as String
+                "categorie" -> f.categorie = v as String
+                "statut" -> f.statut = v as String
             }
         }
         vm.setFiltre(f)
