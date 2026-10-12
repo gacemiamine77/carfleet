@@ -30,7 +30,6 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_vehicles -> VehiclesFragment()
                 R.id.nav_map -> FleetMapFragment()
                 R.id.nav_trips -> HistoryFragment()
-                R.id.nav_zones -> ZonesFragment()
                 R.id.nav_profile -> ProfileFragment()
                 else -> VehiclesFragment()
             }

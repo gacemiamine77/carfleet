@@ -32,6 +32,9 @@ class VehiclesFragment : Fragment() {
         val session = SessionManager(requireContext())
         ApiClient.init(session.baseUrl)
         view.findViewById<Button>(R.id.btnReload).setOnClickListener { charger(view, session) }
+        view.findViewById<Button>(R.id.btnZones).setOnClickListener {
+            (activity as MainActivity).open(ZonesFragment())
+        }
         view.findViewById<Button>(R.id.btnAdd).setOnClickListener {
             (activity as MainActivity).open(VehicleFormFragment.nouveau())
         }
@@ -83,8 +86,12 @@ class VehiclesFragment : Fragment() {
         }
         val titre = "${v.marque ?: ""} ${v.modele ?: ""} ${v.couleur ?: ""}".trim().ifBlank { v.immatriculation ?: "—" }
         val etat = if (live?.live != null) etatDe(live) else if (verrouille) "Suivi inactif (paiement requis)" else "⚪ Hors ligne"
+        val li = live?.live
+        val gps = li?.speed ?: 0.0
+        val vit = if (li == null) "" else "Vitesse : ${(if (gps > 0) gps else li.computedSpeed ?: 0.0).toInt()} km/h"
         box.addView(TextView(ctx).apply {
             text = "🚗 $titre\nMatricule : ${v.immatriculation ?: "—"}\n$etat" +
+                (if (vit.isNotBlank()) "\n$vit" else "") +
                 (v.chauffeur?.let { "\n🧑‍✈️ ${it.prenom ?: ""} ${it.nom ?: ""}".trim() } ?: "") +
                 if (v.isStolen) "\n🔴 VOL DÉCLARÉ" else ""
             textSize = 15f
@@ -136,6 +143,11 @@ class VehiclesFragment : Fragment() {
         return box
     }
 
+    private fun vitesseDe(live: dz.carfleet.abonne.api.LiveInfo): Double {
+        val gps = live.speed ?: 0.0
+        return if (gps > 0) gps else live.computedSpeed ?: 0.0
+    }
+
     private fun etatDe(v: LiveVehicle): String {
         val live = v.live ?: return "⚪ Hors ligne (aucune position)"
         val ageMin = try {
@@ -144,7 +156,8 @@ class VehiclesFragment : Fragment() {
             (System.currentTimeMillis() - (fmt.parse(ts.take(19))?.time ?: 0)) / 60000.0
         } catch (_: Exception) { return "⚪ Hors ligne" }
         if (ageMin > 10) return "⚪ Hors ligne (dernière position il y a ${ageMin.toInt()} min)"
-        if ((live.speed ?: 0.0) >= 5) return "🟢 En mouvement (${live.speed?.toInt() ?: 0} km/h)"
+        val vit = vitesseDe(live)
+        if (vit >= 5) return "🟢 En mouvement (${vit.toInt()} km/h)"
         return "🟠 À l'arrêt"
     }
 }

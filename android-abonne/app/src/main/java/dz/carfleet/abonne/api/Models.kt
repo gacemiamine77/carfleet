@@ -56,6 +56,7 @@ data class LiveInfo(
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     val speed: Double? = null,
+    val computedSpeed: Double? = null,
     val heading: Double? = null,
     val recordedAt: String? = null
 )
