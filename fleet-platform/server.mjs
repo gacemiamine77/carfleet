@@ -55,7 +55,9 @@ const STATIC = {
   "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8" },
   "/admin": { file: "admin.html", type: "text/html; charset=utf-8" },
   "/admin.html": { file: "admin.html", type: "text/html; charset=utf-8" },
-  "/admin.js": { file: "admin.js", type: "text/javascript; charset=utf-8" }
+  "/admin.js": { file: "admin.js", type: "text/javascript; charset=utf-8" },
+  "/abonne": { file: "index.html", type: "text/html; charset=utf-8" },
+  "/abonne.html": { file: "index.html", type: "text/html; charset=utf-8" }
 };
 
 function clientIp(req) {
