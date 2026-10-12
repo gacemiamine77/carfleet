@@ -1,5 +1,6 @@
 /* Fleet Platform — espace administrateur (page dédiée /admin.html). */
-let adminToken = sessionStorage.getItem("fleet_admin") || "";
+// Session volontairement en mémoire seule : quitter l'onglet ou la page impose une reconnexion.
+let adminToken = "";
 let editingPlan = 0;
 const $ = (id) => document.getElementById(id);
 
@@ -26,14 +27,14 @@ function show(id) {
 $("btnAdminLogin").onclick = async () => {
   try {
     const j = await call("/api/admin/auth/login", { method: "POST", body: JSON.stringify({ username: $("aUser").value.trim(), password: $("aPass").value, code: $("aCode").value.trim() }) });
-    adminToken = j.token; sessionStorage.setItem("fleet_admin", adminToken);
+    adminToken = j.token;
     entrerAdmin(j.role);
   } catch (e) { msg("adminMsg", e.message); }
 };
 $("btnForgot").onclick = () => $("forgotBox").classList.toggle("hidden");
 $("navLogout").onclick = async () => {
   try { await call("/api/admin/auth/logout", { method: "POST" }); } catch { /* session déjà morte */ }
-  adminToken = ""; sessionStorage.removeItem("fleet_admin");
+  adminToken = "";
   show("view-admin-login");
   $("navLogout").classList.add("hidden");
 };
@@ -45,11 +46,13 @@ async function entrerAdmin(role) {
     $("aRole").style.background = role === "superadmin" ? "#7c3aed" : "#64748b";
     $("aRole").style.color = "#fff";
   }
-  await Promise.all([chargerStats(), chargerComptes(), chargerPlansAdmin(), chargerPaiements(), chargerAudit(), chargerReglages(), chargerAdmins()]);
+  await Promise.all([chargerStats(), chargerComptes(), chargerPlansAdmin(), chargerPaiements(), chargerVols(), chargerAudit(), chargerReglages(), chargerAdmins()]);
 }
 document.querySelectorAll("#adminTabs button").forEach((b) => (b.onclick = () => {
   document.querySelectorAll("#adminTabs button").forEach((x) => x.classList.toggle("on", x === b));
-  ["dash", "comptes", "forfaits", "paiements", "audit", "admins", "motdepasse", "reglages"].forEach((v) => $("a-" + v).classList.toggle("hidden", v !== b.dataset.v));
+  ["dash", "comptes", "forfaits", "paiements", "vols", "carte", "audit", "admins", "motdepasse", "reglages"].forEach((v) => $("a-" + v).classList.toggle("hidden", v !== b.dataset.v));
+  if (b.dataset.v === "carte") initAMap();
+  if (b.dataset.v === "vols") marquerVolsVus();
 }));
 
 // ---------- Indicateurs ----------
@@ -184,6 +187,115 @@ async function chargerPaiements() {
 }
 $("btnPays").onclick = chargerPaiements;
 
+// ---------- Vols déclarés ----------
+async function chargerVols() {
+  try {
+    const j = await call("/api/admin/vols", {});
+    const vols = j.vols || [];
+    const nonVus = vols.filter((v) => !v.vu_par_admin).length;
+    $("tabVols").textContent = nonVus ? `Vols (${nonVus})` : "Vols";
+    $("aVolsRows").innerHTML = vols.map((v) => {
+      const abonne = v.raison_sociale || [v.prenom, v.nom].filter(Boolean).join(" ") || "—";
+      const ouvert = v.status === "open";
+      const pos = v.latitude != null
+        ? `${Number(v.latitude).toFixed(4)}, ${Number(v.longitude).toFixed(4)}<br /><small>${v.speed || 0} km/h · ${fmtDate(v.position_at)}</small><br /><small><a href="https://www.openstreetmap.org/?mlat=${v.latitude}&mlon=${v.longitude}#map=15/${v.latitude}/${v.longitude}" target="_blank" rel="noopener">Voir sur OSM</a></small>`
+        : "<i>aucune position</i>";
+      return `<tr>
+        <td><span class="pill ${ouvert ? "st-bad" : "st-mut"}">${ouvert ? "Ouvert" : "Résolu"}</span><br /><small>n° ${v.dossier} · ${fmtDate(v.reported_at)}</small></td>
+        <td><b>${v.immatriculation}</b><br /><small>${[v.marque, v.modele, v.couleur].filter(Boolean).join(" ")}</small></td>
+        <td><b>${abonne}</b><br /><small>${v.username || ""} · ${v.telephone || ""} · ${v.statut_compte || ""}</small></td>
+        <td>${pos}</td>
+        <td>${v.note || "—"}</td>
+        <td style="white-space:nowrap"><button data-voir="${v.vehicle_id}" class="ghost">Voir carte</button></td>
+      </tr>`;
+    }).join("") || '<tr><td colspan="6"><i>Aucun vol signalé.</i></td></tr>';
+    document.querySelectorAll("#aVolsRows [data-voir]").forEach((b) => (b.onclick = () => {
+      document.querySelector('#adminTabs button[data-v="carte"]').click();
+      setTimeout(() => {
+        const sel = $("aVehSel");
+        if ([...sel.options].some((o) => o.value === b.dataset.voir)) sel.value = b.dataset.voir;
+        chargerItineraireAdmin();
+      }, 120);
+    }));
+  } catch (e) {
+    $("aVolsRows").innerHTML = `<tr><td colspan="6">${e.message}</td></tr>`;
+  }
+}
+async function marquerVolsVus() {
+  try {
+    await call("/api/admin/vols/vus", { method: "POST", body: JSON.stringify({}) });
+    $("tabVols").textContent = "Vols";
+  } catch { /* pastille conservée */ }
+}
+
+// ---------- Carte admin : positions et itinéraires ----------
+let amap = null, alayer = null, aline = null;
+function initAMap() {
+  if (amap) { setTimeout(() => amap.invalidateSize(), 80); return; }
+  amap = L.map("amap").setView([35.8, 3.0], 6);
+  L.tileLayer("https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap France | © OpenStreetMap", subdomains: "abc", maxZoom: 20 }).addTo(amap);
+  alayer = L.layerGroup().addTo(amap);
+  aline = L.layerGroup().addTo(amap);
+  const fin = new Date(), debut = new Date(Date.now() - 24 * 3600 * 1000);
+  $("aFin").value = fin.toISOString().slice(0, 16);
+  $("aDebut").value = debut.toISOString().slice(0, 16);
+  setTimeout(() => amap.invalidateSize(), 80);
+  chargerVehiculesAdmin();
+}
+async function chargerVehiculesAdmin() {
+  try {
+    const q = new URLSearchParams();
+    if ($("aVehVoles").checked) q.set("vole", "1");
+    if ($("aVehHorsZone").checked) q.set("horsZone", "1");
+    if ($("aVehQ").value.trim()) q.set("q", $("aVehQ").value.trim());
+    const j = await call("/api/admin/vehicules?" + q.toString(), {});
+    const liste = j.vehicules || [];
+    $("aVehSel").innerHTML = liste.map((v) => {
+      const flags = `${v.vol_ouvert || v.is_stolen ? "🚨 " : ""}${(v.zones_hors || []).length ? "⚠️ hors zone " : ""}`;
+      const abonne = v.raison_sociale || [v.prenom, v.nom].filter(Boolean).join(" ") || "";
+      return `<option value="${v.id}">${flags}${v.immatriculation} — ${abonne}</option>`;
+    }).join("") || '<option value="">— aucun véhicule —</option>';
+    alayer.clearLayers();
+    const bounds = [];
+    for (const v of liste) {
+      if (v.latitude == null) continue;
+      const vole = v.vol_ouvert || v.is_stolen;
+      const hz = (v.zones_hors || []).length > 0;
+      const couleur = vole ? "#dc2626" : hz ? "#f59e0b" : "#16a34a";
+      const abonne = v.raison_sociale || [v.prenom, v.nom].filter(Boolean).join(" ") || "";
+      L.marker([v.latitude, v.longitude], {
+        icon: L.divIcon({ className: "", html: `<div style="width:18px;height:18px;border-radius:999px;background:${couleur};border:2px solid #fff;box-shadow:0 1px 4px #0006"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] })
+      }).addTo(alayer).bindPopup(`<b>${v.immatriculation}</b>${vole ? " 🚨 VOL" : ""}${hz ? " ⚠️ hors zone" : ""}<br />${[v.marque, v.modele, v.couleur].filter(Boolean).join(" ")}<br />${abonne} · ${v.telephone || ""}<br />${v.speed || 0} km/h · ${fmtDate(v.position_at)}${hz ? "<br />Hors : " + v.zones_hors.join(", ") : ""}`);
+      bounds.push([v.latitude, v.longitude]);
+    }
+    if (bounds.length > 1) amap.fitBounds(bounds, { padding: [20, 20] });
+    else if (bounds.length === 1) amap.setView(bounds[0], 13);
+    $("aItInfo").textContent = `${liste.length} véhicule(s) affiché(s) · 🔴 volé · 🟠 hors zone · 🟢 en règle.`;
+  } catch (e) { $("aItInfo").textContent = e.message; }
+}
+$("btnAVeh").onclick = chargerVehiculesAdmin;
+async function chargerItineraireAdmin() {
+  const id = $("aVehSel").value;
+  if (!id) { $("aItInfo").textContent = "Choisissez un véhicule."; return; }
+  try {
+    const q = new URLSearchParams({ vehicleId: id, limit: "3000" });
+    if ($("aDebut").value) q.set("debut", new Date($("aDebut").value).toISOString());
+    if ($("aFin").value) q.set("fin", new Date($("aFin").value).toISOString());
+    const j = await call("/api/admin/positions?" + q.toString(), {});
+    $("aItInfo").textContent = `${j.vehicule.immatriculation} : ${(j.points || []).length} positions · ${j.distanceKm} km · du ${fmtDate(j.debut)} au ${fmtDate(j.fin)}`;
+    aline.clearLayers();
+    const line = (j.points || []).map((p) => [p.latitude, p.longitude]);
+    if (line.length >= 2) {
+      L.polyline(line, { color: j.vehicule.is_stolen ? "#dc2626" : "#0f3d2e", weight: 4 }).addTo(aline);
+      const d = line[0], f = line[line.length - 1];
+      L.marker(d).addTo(aline).bindPopup("Départ<br />" + fmtDate(j.points[0].recorded_at));
+      L.marker(f).addTo(aline).bindPopup("Arrivée<br />" + fmtDate(j.points[j.points.length - 1].recorded_at));
+      amap.fitBounds(line, { padding: [20, 20] });
+    } else if (line.length === 1) amap.setView(line[0], 13);
+  } catch (e) { $("aItInfo").textContent = e.message; }
+}
+$("btnAItineraire").onclick = chargerItineraireAdmin;
+
 // ---------- Journal ----------
 async function chargerAudit() {
   const j = await call("/api/admin/audit", {});
@@ -257,15 +369,3 @@ $("btnAdminPw").onclick = async () => {
   } catch (e) { msg("adminPwMsg", e.message); }
 };
 $("btnForgot").onclick = () => $("forgotBox").classList.toggle("hidden");
-
-// ---------- Reprise de session ----------
-if (sessionStorage.getItem("fleet_admin")) {
-  (async () => {
-    try {
-      // La session est validée au premier appel ; afficher le rôle après.
-      await entrerAdmin();
-    } catch {
-      sessionStorage.removeItem("fleet_admin");
-    }
-  })();
-}

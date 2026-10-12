@@ -1,5 +1,6 @@
 /* Fleet Platform — tableau de bord abonné (données persistantes). L'admin est sur /admin.html. */
-let token = localStorage.getItem("fleet_token") || "";
+// Session volontairement en mémoire seule : quitter l'onglet ou la page impose une reconnexion.
+let token = "";
 let typeCompte = "particulier";
 let couleursVehicules = [];
 let profil = null;
@@ -61,7 +62,7 @@ function showAppTab(name) {
 }
 document.querySelectorAll("#appTabs button").forEach((b) => (b.onclick = () => showAppTab(b.dataset.v)));
 $("navHome").onclick = () => { show("view-home"); };
-$("navLogout").onclick = () => { token = ""; localStorage.removeItem("fleet_token"); stopPoll(); show("view-home"); $("navLogout").classList.add("hidden"); };
+$("navLogout").onclick = () => { token = ""; stopPoll(); show("view-home"); $("navLogout").classList.add("hidden"); };
 function showAuth(mode) {
   show("view-auth");
   const login = mode === "login";
@@ -91,7 +92,7 @@ async function chargerPlans() {
 $("btnLogin").onclick = async () => {
   try {
     const j = await call("/api/proprietaires/auth/login", { method: "POST", body: JSON.stringify({ username: $("username").value.trim(), password: $("password").value }) });
-    token = j.token; localStorage.setItem("fleet_token", token);
+    token = j.token;
     msg("authMsg", "Connecté.", true);
     await entrerApp();
   } catch (e) { msg("authMsg", e.message); }
@@ -109,7 +110,7 @@ $("btnRegister").onclick = async () => {
     if (ent) { body.raisonSociale = $("regRaison").value.trim(); body.nom = $("regCNom").value.trim(); body.prenom = $("regCPrenom").value.trim(); body.email = $("regEmail").value.trim(); }
     else { body.nom = $("regNom").value.trim(); body.prenom = $("regPrenom").value.trim(); body.adresse = $("regAdresse").value.trim(); }
     const j = await call("/api/proprietaires/auth/register", { method: "POST", body: JSON.stringify(body) });
-    token = j.token; localStorage.setItem("fleet_token", token);
+    token = j.token;
     msg("authMsg", "Compte créé : inscription reçue. Choisissez un forfait dans Profil si besoin.", true);
     await entrerApp();
   } catch (e) { msg("authMsg", e.message); }
@@ -332,9 +333,12 @@ document.addEventListener("click", async (e) => {
   if (theft) {
     const isStolen = e.target.textContent.includes("Résoudre");
     try {
-      if (isStolen) await call("/api/fleet/theft/resolve", { method: "POST", body: JSON.stringify({ vehicleId: Number(theft) }) });
-      else if (confirm("Déclarer ce véhicule volé ?")) {
+      if (isStolen) {
+        await call("/api/fleet/theft/resolve", { method: "POST", body: JSON.stringify({ vehicleId: Number(theft) }) });
+        msg("vehMsg", "Dossier de vol refermé.", true);
+      } else if (confirm("Déclarer ce véhicule volé ? L'administrateur sera alerté et la localisation restera suivie pour les recherches.")) {
         await call("/api/fleet/theft/report", { method: "POST", body: JSON.stringify({ vehicleId: Number(theft), share: true, dureeJours: 7 }) });
+        msg("vehMsg", "Vol déclaré : l'administrateur a été alerté.", true);
       } else return;
       await loadVehicles();
     } catch (err) { msg("vehMsg", err.message); }
@@ -463,7 +467,3 @@ $("btnZEvents").onclick = async () => {
     $("zEvents").innerHTML = (j.evenements || []).map((e) => `<div>${e.type === "entree" ? "➡️ Entrée" : "⬅️ Sortie"} — <b>${e.immatriculation}</b> · ${e.zone} · ${fmtDate(e.occurred_at)}</div>`).join("") || "<i>Aucun événement.</i>";
   } catch (e) { $("zEvents").textContent = e.message; }
 };
-// ---------- Reprise de session ----------
-if (token) {
-  entrerApp().catch(() => { token = ""; localStorage.removeItem("fleet_token"); });
-}
