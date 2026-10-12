@@ -7,7 +7,7 @@ let profil = null;
 let statut = null;
 let vehicles = [];
 let zones = [];
-let map = null, layer = null, pollT = null;
+let map = null, layer = null, pollT = null, cadrageAuto = true;
 let zmap = null, zlayer = null, zdraft = null, zVertices = [], zCentre = null;
 const $ = (id) => document.getElementById(id);
 const OFFLINE_MIN = 10;
@@ -212,11 +212,17 @@ $("btnNotif").onclick = async () => {
 };
 
 // ---------- Véhicules ----------
+// Vitesse effective : GPS du dispositif, sinon déplacement calculé côté serveur.
+function vitesseLive(v) {
+  const gps = (v.live && v.live.speed) || 0;
+  if (gps > 0) return gps;
+  return (v.live && v.live.computedSpeed) || 0;
+}
 function statutVehicule(v) {
   if (!v.live) return { txt: "Hors ligne", cls: "d-off" };
   const ageMin = (Date.now() - new Date(v.live.recordedAt).getTime()) / 60000;
   if (ageMin > OFFLINE_MIN) return { txt: "Hors ligne", cls: "d-off" };
-  if ((v.live.speed || 0) >= 5) return { txt: "En mouvement", cls: "d-move" };
+  if (vitesseLive(v) >= 5) return { txt: "En mouvement", cls: "d-move" };
   return { txt: "À l’arrêt", cls: "d-stop" };
 }
 async function loadVehicles() {
@@ -225,7 +231,7 @@ async function loadVehicles() {
   try {
     registre = (await call("/api/proprietaires/vehicules")).vehicules || [];
   } catch (e) {
-    $("rows").innerHTML = `<tr><td colspan="5">${e.message}</td></tr>`;
+    $("rows").innerHTML = `<tr><td colspan="6">${e.message}</td></tr>`;
     return;
   }
   const liveParId = {};
@@ -246,14 +252,16 @@ async function loadVehicles() {
   $("count").textContent = vehicles.length;
   $("rows").innerHTML = vehicles.map((v) => {
     const etat = v.live ? `<span class="dot ${statutVehicule(v).cls}"></span>${statutVehicule(v).txt}` : (suiviActif ? "Hors ligne" : "<i>suivi inactif</i>");
+    const vit = v.live ? `<b>${Math.round(vitesseLive(v))} km/h</b>` : "—";
     return `<tr>
       <td><b>${v.immatriculation}</b><br /><small>${[v.marque, v.modele, v.couleur].filter(Boolean).join(" ")}${v.nomInterne ? " · " + v.nomInterne : ""}</small></td>
       <td>${etat}</td>
+      <td style="white-space:nowrap">${vit}</td>
       <td>${v.chauffeur ? (v.chauffeur.prenom || "") + " " + (v.chauffeur.nom || "") : "—"}</td>
       <td class="${v.isStolen ? "stolen" : ""}">${v.isStolen ? "VOL DÉCLARÉ" : "OK"}</td>
       <td><button data-edit="${v.id}" class="ghost">Gérer</button> <button data-theft="${v.id}" class="ghost">${v.isStolen ? "Résoudre" : "Vol"}</button></td>
     </tr>`;
-  }).join("") || '<tr><td colspan="5" style="color:#999">Aucun véhicule. Ajoutez-en un ci-dessous.</td></tr>';
+  }).join("") || '<tr><td colspan="6" style="color:#999">Aucun véhicule. Ajoutez-en un ci-dessous.</td></tr>';
   $("hVeh").innerHTML = vehicles.map((v) => `<option value="${v.id}">${v.immatriculation}</option>`).join("");
   $("zVeh").innerHTML = '<option value="">Tous</option>' + vehicles.map((v) => `<option value="${v.id}">${v.immatriculation}</option>`).join("");
   drawLive();
@@ -366,9 +374,14 @@ function drawLive() {
     }).addTo(layer).bindPopup(`<b>${v.immatriculation}</b><br />${s.txt} · ${v.live.speed || 0} km/h<br />${fmtDate(v.live.recordedAt)}`);
     bounds.push([v.live.latitude, v.live.longitude]);
   }
-  if (bounds.length > 1) map.fitBounds(bounds, { padding: [20, 20] });
-  else if (bounds.length === 1) map.setView(bounds[0], 13);
+  // Recadrage unique : le zoom manuel de l'abonné n'est plus jamais écrasé (bouton Recentrer).
+  if (cadrageAuto) {
+    cadrageAuto = false;
+    if (bounds.length > 1) map.fitBounds(bounds, { padding: [20, 20] });
+    else if (bounds.length === 1) map.setView(bounds[0], 13);
+  }
 }
+$("btnRecentrer").onclick = () => { cadrageAuto = true; drawLive(); showAppTab("carte"); };
 function startPoll() { stopPoll(); pollT = setInterval(() => { if (!$("view-app").classList.contains("hidden")) loadVehicles().catch(() => {}); }, 10000); }
 function stopPoll() { if (pollT) clearInterval(pollT); pollT = null; }
 

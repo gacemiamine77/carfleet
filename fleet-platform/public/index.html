@@ -139,7 +139,7 @@
         </div>
         <div id="suiviMsg" class="hidden" style="font-size:12px;background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:8px;margin-top:8px"></div>
         <div style="overflow:auto;margin-top:8px">
-          <table><thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Antivol</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+          <table><thead><tr><th>Véhicule</th><th>État</th><th>Vitesse</th><th>Chauffeur</th><th>Antivol</th><th></th></tr></thead><tbody id="rows"></tbody></table>
         </div>
       </div>
       <div class="card hidden" id="vehFormCard">
@@ -182,7 +182,7 @@
     </div>
 
     <div id="v-carte" class="hidden">
-      <div class="card"><div id="mapMsg" class="hidden" style="font-size:12px;background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:8px;margin-bottom:8px"></div><div id="map"></div><div style="font-size:11px;color:var(--mut);margin-top:6px">Actualisation toutes les 10 s · 🟢 en mouvement · 🟠 à l’arrêt · ⚪ hors ligne</div></div>
+      <div class="card"><div id="mapMsg" class="hidden" style="font-size:12px;background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:8px;margin-bottom:8px"></div><div id="map"></div><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px"><span style="font-size:11px;color:var(--mut)">Actualisation toutes les 10 s · 🟢 en mouvement · 🟠 à l’arrêt · ⚪ hors ligne</span><button id="btnRecentrer" class="ghost">Recentrer</button></div></div>
     </div>
 
     <div id="v-historique" class="hidden">

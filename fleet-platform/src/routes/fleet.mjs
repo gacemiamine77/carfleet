@@ -3,8 +3,8 @@ import { query } from "../db.mjs";
 import { requireOwner } from "../auth.mjs";
 import { readJson, sendJson } from "../http.mjs";
 import { activeDriver, vehicleForOwner } from "../fleet.mjs";
-import { audit, compteUtilisable } from "../lifecycle.mjs";
-import { optionalText } from "../validation.mjs";
+import { compteUtilisable } from "../lifecycle.mjs";
+import { haversineMeters, optionalText } from "../validation.mjs";
 
 async function gate(session) {
   const check = await compteUtilisable(session.owner.id);
@@ -41,6 +41,25 @@ export async function live(req, res, auth, params) {
   const vehicles = [];
   for (const vehicle of rows) {
     const driver = await activeDriver(vehicle.id);
+    // Vitesse de secours : si le GPS du dispositif n'a pas mesuré de vitesse (0),
+    // on la déduit du déplacement entre les deux dernières positions.
+    let vitesseCalculee = null;
+    if (vehicle.live_at && !(Number(vehicle.speed) > 0)) {
+      const prev = (
+        await query(
+          `SELECT latitude, longitude, recorded_at FROM fleet_positions
+            WHERE vehicle_id = $1 AND recorded_at < $2 ORDER BY recorded_at DESC LIMIT 1`,
+          [vehicle.id, vehicle.live_at]
+        )
+      ).rows[0];
+      if (prev) {
+        const heures = (new Date(vehicle.live_at).getTime() - new Date(prev.recorded_at).getTime()) / 3600000;
+        if (heures > 0) {
+          vitesseCalculee =
+            Math.round(((haversineMeters(prev.latitude, prev.longitude, vehicle.latitude, vehicle.longitude) / 1000) / heures) * 10) / 10;
+        }
+      }
+    }
     vehicles.push({
       id: vehicle.id,
       carId: vehicle.car_id,
@@ -54,6 +73,7 @@ export async function live(req, res, auth, params) {
             latitude: vehicle.latitude,
             longitude: vehicle.longitude,
             speed: vehicle.speed,
+            computedSpeed: vitesseCalculee,
             heading: vehicle.heading,
             fuel: vehicle.fuel,
             recordedAt: vehicle.live_at,
