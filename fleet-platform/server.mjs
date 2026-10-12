@@ -1,5 +1,5 @@
 import http from "node:http";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import "dotenv/config";
@@ -172,6 +172,38 @@ const server = http.createServer((req, res) => {
   });
 });
 
+// Migrations embarquées : appliquées au démarrage (idempotentes, sans bloquer le service).
+async function migrerAuDemarrage() {
+  try {
+    const { pool } = await import("./src/db.mjs");
+    const client = await pool.connect();
+    try {
+      await client.query(`CREATE TABLE IF NOT EXISTS fleet_migrations (filename TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+      const applied = new Set((await client.query(`SELECT filename FROM fleet_migrations`)).rows.map((row) => row.filename));
+      const dir = path.join(root, "db");
+      const files = (await readdir(dir)).filter((name) => name.endsWith(".sql")).sort();
+      for (const filename of files) {
+        if (applied.has(filename)) continue;
+        try {
+          await client.query("BEGIN");
+          await client.query(await readFile(path.join(dir, filename), "utf8"));
+          await client.query(`INSERT INTO fleet_migrations(filename) VALUES($1) ON CONFLICT DO NOTHING`, [filename]);
+          await client.query("COMMIT");
+          console.log(`Migration appliquée : ${filename}`);
+        } catch (error) {
+          await client.query("ROLLBACK");
+          console.error(`Migration ${filename} ignorée : ${error.message}`);
+        }
+      }
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error(`Migrations au démarrage impossibles : ${error.message}`);
+  }
+}
+
+await migrerAuDemarrage();
 server.listen(port, () => {
   console.log(`Fleet Platform : http://localhost:${port}`);
 });
