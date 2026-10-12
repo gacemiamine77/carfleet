@@ -262,7 +262,15 @@
       <label>Code 2FA (si activé)<input id="aCode" inputmode="numeric" /></label>
     </div>
     <button id="btnAdminLogin">Se connecter</button>
+    <p><button id="btnForgot" class="ghost" type="button">Mot de passe oublié ?</button></p>
     <p class="msg" id="adminMsg"></p>
+    <div id="forgotBox" class="hidden" style="font-size:13px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+      <b>Récupération d’accès :</b>
+      <ol style="margin:6px 0;padding-left:18px">
+        <li>Demandez à un <b>superadmin</b> de redéfinir votre mot de passe (onglet <b>Admins</b> → <b>Nouv. MDP</b>).</li>
+        <li>Sans superadmin disponible : sur le serveur, <code>node scripts/admin.mjs reset-password &lt;utilisateur&gt; &lt;nouveau-mot-de-passe&gt;</code>.</li>
+      </ol>
+    </div>
   </section>
 
   <section id="view-admin" class="hidden">

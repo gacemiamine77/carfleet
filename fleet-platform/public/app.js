@@ -475,6 +475,8 @@ document.addEventListener("click", async (e) => {
   } catch (err) { msg("adminsMsg", err.message); }
 });
 document.addEventListener("DOMContentLoaded", () => {
+  const btnF = document.getElementById("btnForgot");
+  if (btnF) btnF.onclick = () => document.getElementById("forgotBox").classList.toggle("hidden");
   const btnC = document.getElementById("btnAdminCreate");
   if (btnC) btnC.onclick = async () => {
     try {
