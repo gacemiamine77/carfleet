@@ -23,11 +23,24 @@
                 android:textStyle="bold" />
 
             <Button
+                android:id="@+id/btnAdd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="＋" />
+
+            <Button
                 android:id="@+id/btnReload"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="🔄" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvLock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:visibility="gone" />
 
         <LinearLayout
             android:id="@+id/listVeh"

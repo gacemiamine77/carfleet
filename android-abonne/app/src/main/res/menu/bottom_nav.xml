@@ -4,5 +4,6 @@
     <item android:id="@+id/nav_vehicles" android:icon="@drawable/ic_nav_vehicles" android:title="Véhicules" />
     <item android:id="@+id/nav_map" android:icon="@drawable/ic_nav_map" android:title="Carte" />
     <item android:id="@+id/nav_trips" android:icon="@drawable/ic_nav_trips" android:title="Trajets" />
+    <item android:id="@+id/nav_zones" android:icon="@drawable/ic_nav_zones" android:title="Zones" />
     <item android:id="@+id/nav_profile" android:icon="@drawable/ic_nav_profile" android:title="Profil" />
 </menu>

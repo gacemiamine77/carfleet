@@ -8,6 +8,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import dz.carfleet.abonne.R
 import dz.carfleet.abonne.api.ApiClient
 import dz.carfleet.abonne.data.SessionManager
+import dz.carfleet.abonne.ui.admin.AdminHomeFragment
 
 class MainActivity : AppCompatActivity() {
     private lateinit var session: SessionManager
@@ -29,6 +30,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_vehicles -> VehiclesFragment()
                 R.id.nav_map -> FleetMapFragment()
                 R.id.nav_trips -> HistoryFragment()
+                R.id.nav_zones -> ZonesFragment()
                 R.id.nav_profile -> ProfileFragment()
                 else -> VehiclesFragment()
             }
@@ -45,16 +47,29 @@ class MainActivity : AppCompatActivity() {
 
     fun applyLock() {
         val nav = findViewById<BottomNavigationView>(R.id.bottomNav)
-        if (session.isLogged) {
-            nav.visibility = View.VISIBLE
-        } else {
-            nav.visibility = View.GONE
-            supportFragmentManager.beginTransaction().replace(R.id.container, AccountFragment()).commit()
+        when {
+            session.isAdmin -> {
+                nav.visibility = View.GONE
+                supportFragmentManager.beginTransaction().replace(R.id.container, AdminHomeFragment()).commit()
+            }
+            session.isLogged -> nav.visibility = View.VISIBLE
+            else -> {
+                nav.visibility = View.GONE
+                supportFragmentManager.beginTransaction().replace(R.id.container, AccountFragment()).commit()
+            }
         }
     }
 
     fun goVehicles() {
         applyLock()
         findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = R.id.nav_vehicles
+    }
+
+    fun open(f: Fragment) {
+        supportFragmentManager.beginTransaction().replace(R.id.container, f).addToBackStack(null).commit()
+    }
+
+    fun openAdminHome() {
+        applyLock()
     }
 }
