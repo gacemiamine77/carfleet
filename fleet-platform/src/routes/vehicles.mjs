@@ -2,11 +2,12 @@ import { query } from "../db.mjs";
 import { requireOwner } from "../auth.mjs";
 import { readJson, sendJson } from "../http.mjs";
 import { activeDriver, vehicleForOwner } from "../fleet.mjs";
-import { compteUtilisable, limiteVehicules } from "../lifecycle.mjs";
+import { compteModifiable, limiteVehicules } from "../lifecycle.mjs";
 import { finiteNumber, optionalText, serialId, text, vin } from "../validation.mjs";
 
+// Fiche véhicule = donnée modifiable même sans paiement (seul le suivi exige un abonnement actif).
 async function gate(session) {
-  const check = await compteUtilisable(session.owner.id);
+  const check = await compteModifiable(session.owner.id);
   if (!check.ok) return check.motif;
   return null;
 }

@@ -2,7 +2,7 @@ import { query } from "../db.mjs";
 import { adminLogin, adminLogout, bearerToken, hashPassword, requireAdmin, requireSuperAdmin } from "../admin_auth.mjs";
 import { verifyPassword } from "../auth.mjs";
 import { readJson, sendJson } from "../http.mjs";
-import { audit, dernierAbonnement, finAbonnement, notifier, setting } from "../lifecycle.mjs";
+import { audit, dernierAbonnement, finAbonnement, lireCouleurs, nettoyerCouleurs, notifier, setting } from "../lifecycle.mjs";
 import { text } from "../validation.mjs";
 
 // POST /api/admin/auth/login {username, password, code?}
@@ -157,7 +157,7 @@ export async function gererCompte(req, res, auth) {
   }
 }
 
-// GET /api/admin/forfaits — POST créer — PATCH modifier.
+// GET /api/admin/forfaits — POST créer — PATCH modifier — DELETE ?id= supprimer.
 export async function forfaits(req, res, auth) {
   const admin = auth || (await requireAdmin(req));
   if (!admin) return sendJson(res, 401, { error: "Non authentifié" });
@@ -165,6 +165,20 @@ export async function forfaits(req, res, auth) {
     if (req.method === "GET") {
       const { rows } = await query(`SELECT * FROM fleet_plans ORDER BY type_compte, prix`);
       return sendJson(res, 200, { forfaits: rows });
+    }
+    if (req.method === "DELETE") {
+      const url = new URL(req.url, "http://localhost");
+      const id = Number(url.searchParams.get("id"));
+      if (!id) return sendJson(res, 400, { error: "id requis" });
+      const plan = (await query(`SELECT * FROM fleet_plans WHERE id = $1 LIMIT 1`, [id])).rows[0];
+      if (!plan) return sendJson(res, 404, { error: "Forfait introuvable" });
+      const usages = (await query(`SELECT COUNT(*)::int AS n FROM fleet_subscriptions WHERE plan_id = $1`, [id])).rows[0]?.n || 0;
+      if (usages > 0) {
+        return sendJson(res, 409, { error: `Forfait utilisé par ${usages} abonnement(s) : désactivez-le plutôt que le supprimer` });
+      }
+      await query(`DELETE FROM fleet_plans WHERE id = $1`, [id]);
+      await audit(admin.id, "suppression_forfait", "forfait", id, { nom: plan.nom });
+      return sendJson(res, 200, { ok: true });
     }
     const body = await readJson(req);
     if (req.method === "POST") {
@@ -191,6 +205,10 @@ export async function forfaits(req, res, auth) {
     if (body.nom !== undefined) {
       params.push(text(body.nom, 100, { required: true }));
       sets.push(`nom = $${params.length}`);
+    }
+    if (body.type_compte !== undefined && ["particulier", "entreprise"].includes(body.type_compte)) {
+      params.push(body.type_compte);
+      sets.push(`type_compte = $${params.length}`);
     }
     if (body.prix !== undefined) {
       params.push(Number(body.prix) || 0);
@@ -496,17 +514,29 @@ export async function gererAdmin(req, res, auth) {
   }
 }
 
-// GET /api/admin/reglages — PATCH {activationAuto}
+// GET /api/admin/reglages — PATCH {activationAuto?, couleurs?}
 export async function reglages(req, res, auth) {
   const admin = auth || (await requireAdmin(req));
   if (!admin) return sendJson(res, 401, { error: "Non authentifié" });
   if (req.method === "GET") {
-    return sendJson(res, 200, { activationAuto: (await setting("activation_auto_apres_paiement", "0")) === "1" });
+    return sendJson(res, 200, {
+      activationAuto: (await setting("activation_auto_apres_paiement", "0")) === "1",
+      couleurs: await lireCouleurs()
+    });
   }
   const body = await readJson(req).catch(() => ({}));
-  await query(`INSERT INTO fleet_settings(cle, valeur) VALUES('activation_auto_apres_paiement', $1) ON CONFLICT (cle) DO UPDATE SET valeur = EXCLUDED.valeur, updated_at = now()`, [
-    body.activationAuto ? "1" : "0"
-  ]);
-  await audit(admin.id, "reglage_activation", null, null, { activationAuto: Boolean(body.activationAuto) });
+  if (body.activationAuto !== undefined) {
+    await query(`INSERT INTO fleet_settings(cle, valeur) VALUES('activation_auto_apres_paiement', $1) ON CONFLICT (cle) DO UPDATE SET valeur = EXCLUDED.valeur, updated_at = now()`, [
+      body.activationAuto ? "1" : "0"
+    ]);
+    await audit(admin.id, "reglage_activation", null, null, { activationAuto: Boolean(body.activationAuto) });
+  }
+  if (body.couleurs !== undefined) {
+    const liste = nettoyerCouleurs(body.couleurs);
+    await query(`INSERT INTO fleet_settings(cle, valeur) VALUES('couleurs_vehicules', $1) ON CONFLICT (cle) DO UPDATE SET valeur = EXCLUDED.valeur, updated_at = now()`, [
+      JSON.stringify(liste)
+    ]);
+    await audit(admin.id, "reglage_couleurs", null, null, { nombre: liste.length });
+  }
   return sendJson(res, 200, { ok: true });
 }

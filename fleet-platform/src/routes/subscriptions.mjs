@@ -1,7 +1,7 @@
 import { query } from "../db.mjs";
 import { requireOwner } from "../auth.mjs";
 import { readJson, sendJson } from "../http.mjs";
-import { dernierAbonnement, notifier, verifierExpiration } from "../lifecycle.mjs";
+import { dernierAbonnement, lireCouleurs, notifier, verifierExpiration } from "../lifecycle.mjs";
 
 // GET /api/fleet/plans?type=particulier|entreprise → forfaits actifs (public).
 export async function plans(req, res) {
@@ -15,6 +15,11 @@ export async function plans(req, res) {
   }
   const { rows } = await query(`SELECT * FROM fleet_plans WHERE ${where} ORDER BY prix ASC`, values);
   return sendJson(res, 200, { forfaits: rows });
+}
+
+// GET /api/fleet/couleurs → couleurs de véhicules proposées (réglage admin, public).
+export async function couleurs(req, res) {
+  return sendJson(res, 200, { couleurs: await lireCouleurs() });
 }
 
 // POST /api/fleet/abonnement {planId, methode?} → crée abonnement + paiement.

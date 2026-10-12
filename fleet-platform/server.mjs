@@ -35,6 +35,7 @@ import {
 } from "./src/routes/geofences.mjs";
 import {
   choisir as choisirAbonnement,
+  couleurs,
   declarer as declarerPaiement,
   lireNotifications,
   notifications,
@@ -51,7 +52,10 @@ const port = Number(process.env.PORT || process.env.FLEET_PORT || 3003);
 const STATIC = {
   "/": { file: "index.html", type: "text/html; charset=utf-8" },
   "/index.html": { file: "index.html", type: "text/html; charset=utf-8" },
-  "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8" }
+  "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8" },
+  "/admin": { file: "admin.html", type: "text/html; charset=utf-8" },
+  "/admin.html": { file: "admin.html", type: "text/html; charset=utf-8" },
+  "/admin.js": { file: "admin.js", type: "text/javascript; charset=utf-8" }
 };
 
 function clientIp(req) {
@@ -107,6 +111,7 @@ async function router(req, res) {
   if (route === "GET /api/fleet/history") return history(req, res);
   if (route === "GET /api/fleet/stats") return stats(req, res);
   if (route === "GET /api/fleet/plans") return plans(req, res);
+  if (route === "GET /api/fleet/couleurs") return couleurs(req, res);
   if (route === "POST /api/fleet/abonnement") return choisirAbonnement(req, res);
   if (route === "POST /api/fleet/paiement/declarer") return declarerPaiement(req, res);
   if (route === "GET /api/fleet/statut") return statutCompte(req, res);
@@ -138,7 +143,7 @@ async function router(req, res) {
   if (route === "GET /api/admin/stats") return statsAdmin(req, res);
   if (route === "GET /api/admin/comptes") return comptes(req, res);
   if (route === "PATCH /api/admin/comptes") return gererCompte(req, res);
-  if (url.pathname === "/api/admin/forfaits" && (req.method === "GET" || req.method === "POST" || req.method === "PATCH")) return forfaits(req, res);
+  if (url.pathname === "/api/admin/forfaits" && (req.method === "GET" || req.method === "POST" || req.method === "PATCH" || req.method === "DELETE")) return forfaits(req, res);
   if (route === "GET /api/admin/paiements") return paiements(req, res);
   if (route === "PATCH /api/admin/paiements") return gererPaiement(req, res);
   if (route === "POST /api/admin/abonnements") return creerAbonnement(req, res);

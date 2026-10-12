@@ -11,6 +11,7 @@ function publicOwner(owner) {
     nom: owner.nom,
     prenom: owner.prenom,
     raisonSociale: owner.raison_sociale,
+    adresse: owner.adresse || null,
     wilaya: owner.wilaya,
     telephone: owner.telephone,
     email: owner.email || null,
@@ -136,7 +137,7 @@ export async function login(req, res) {
       proprietaire,
       actif: fresh.statut_compte === "actif",
       abonnement: sub
-        ? { id: sub.id, plan: sub.plan_nom, statut: sub.statut, debut: sub.debut_at, fin: sub.fin_at, prix: sub.plan_prix, devise: sub.plan_devise }
+        ? { id: sub.id, plan: sub.plan_nom, statut: sub.statut, debut: sub.debut_at, fin: sub.fin_at, prix: sub.plan_prix, devise: sub.plan_devise, georeperage: Boolean(sub.plan_georeperage) }
         : null
     });
   } catch (error) {
@@ -169,7 +170,7 @@ export async function profile(req, res, auth) {
         proprietaire,
         actif: rows[0].statut_compte === "actif",
         abonnement: sub
-          ? { id: sub.id, plan: sub.plan_nom, statut: sub.statut, debut: sub.debut_at, fin: sub.fin_at, prix: sub.plan_prix, devise: sub.plan_devise }
+          ? { id: sub.id, plan: sub.plan_nom, statut: sub.statut, debut: sub.debut_at, fin: sub.fin_at, prix: sub.plan_prix, devise: sub.plan_devise, georeperage: Boolean(sub.plan_georeperage) }
           : null
       });
     }

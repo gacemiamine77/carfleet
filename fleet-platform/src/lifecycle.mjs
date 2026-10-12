@@ -100,6 +100,40 @@ export async function verifierExpiration(ownerId) {
   return sub;
 }
 
+// Le compte peut-il gérer ses données (véhicules, profil) ? Oui même sans paiement,
+// sauf compte bloqué. Le SUIVI temps réel reste réservé à compteUtilisable().
+export async function compteModifiable(ownerId) {
+  const owner = (await query(`SELECT id, statut_compte FROM fleet_owners WHERE id = $1 LIMIT 1`, [ownerId])).rows[0];
+  if (!owner) return { ok: false, motif: "Compte introuvable" };
+  if (owner.statut_compte === "suspendu") return { ok: false, motif: "Compte suspendu" };
+  if (owner.statut_compte === "refuse") return { ok: false, motif: "Inscription refusée" };
+  return { ok: true };
+}
+
+// Nettoie une liste de couleurs (tableau ou texte séparé par lignes/virgules).
+export function nettoyerCouleurs(valeur) {
+  const brut = Array.isArray(valeur) ? valeur : String(valeur ?? "").split(/[\n,;]+/);
+  const vus = new Set();
+  const propres = [];
+  for (const item of brut) {
+    const couleur = String(item || "").trim().slice(0, 30);
+    if (!couleur || vus.has(couleur.toLowerCase())) continue;
+    vus.add(couleur.toLowerCase());
+    propres.push(couleur);
+    if (propres.length >= 60) break;
+  }
+  return propres;
+}
+
+// Couleurs proposées aux abonnés (réglage admin, défaut : liste vide).
+export async function lireCouleurs() {
+  try {
+    const parsed = JSON.parse(await setting("couleurs_vehicules", "[]"));
+    if (Array.isArray(parsed)) return nettoyerCouleurs(parsed);
+  } catch {}
+  return [];
+}
+
 // Le compte peut-il utiliser le suivi réel ? (Exigence fondamentale.)
 export async function compteUtilisable(ownerId) {
   const owner = (await query(`SELECT id, statut_compte FROM fleet_owners WHERE id = $1 LIMIT 1`, [ownerId])).rows[0];

@@ -47,7 +47,6 @@
   <nav>
     <span id="navUser" style="font-size:12px"></span>
     <button id="navHome">Accueil</button>
-    <button id="navAdmin">Admin</button>
     <button id="navLogout" class="hidden">Déconnexion</button>
   </nav>
 </header>
@@ -88,6 +87,7 @@
           <label>Prénom<input id="regPrenom" /></label>
           <label>Téléphone<input id="regTel" autocomplete="tel" /></label>
           <label>Wilaya<input id="regWilaya" /></label>
+          <label>Adresse<input id="regAdresse" autocomplete="street-address" /></label>
         </div>
       </div>
       <div id="regEntreprise" class="hidden">
@@ -137,6 +137,7 @@
           <h2 style="margin:0">Véhicules — <span id="count">0</span></h2>
           <div><button id="btnAddVeh">＋ Ajouter</button> <button id="btnReload" class="ghost">Actualiser</button></div>
         </div>
+        <div id="suiviMsg" class="hidden" style="font-size:12px;background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:8px;margin-top:8px"></div>
         <div style="overflow:auto;margin-top:8px">
           <table><thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Antivol</th><th></th></tr></thead><tbody id="rows"></tbody></table>
         </div>
@@ -151,7 +152,8 @@
           <label>Année<input id="vehAnnee" type="number" min="1980" max="2100" /></label>
         </div>
         <div class="row">
-          <label>Couleur<input id="vehCouleur" /></label>
+          <label>Couleur<select id="vehCouleur"></select></label>
+          <label id="vehCouleurLibreWrap" class="hidden">Préciser la couleur<input id="vehCouleurLibre" maxlength="30" /></label>
           <label>Immatriculation*<input id="vehImmat" /></label>
           <label>VIN (17)<input id="vehVin" maxlength="17" /></label>
           <label>N° de série du dispositif<input id="vehSerial" maxlength="40" placeholder="Vide = généré automatiquement" /></label>
@@ -180,7 +182,7 @@
     </div>
 
     <div id="v-carte" class="hidden">
-      <div class="card"><div id="map"></div><div style="font-size:11px;color:var(--mut);margin-top:6px">Actualisation toutes les 10 s · 🟢 en mouvement · 🟠 à l’arrêt · ⚪ hors ligne</div></div>
+      <div class="card"><div id="mapMsg" class="hidden" style="font-size:12px;background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:8px;margin-bottom:8px"></div><div id="map"></div><div style="font-size:11px;color:var(--mut);margin-top:6px">Actualisation toutes les 10 s · 🟢 en mouvement · 🟠 à l’arrêt · ⚪ hors ligne</div></div>
     </div>
 
     <div id="v-historique" class="hidden">
@@ -240,6 +242,7 @@
           <label>Prénom<input id="pPrenom" /></label>
           <label>Téléphone<input id="pTel" /></label>
           <label>Email<input id="pEmail" type="email" /></label>
+          <label>Adresse<input id="pAdresse" autocomplete="street-address" /></label>
         </div>
         <div class="row"><button id="btnSaveProfil" class="ghost">Enregistrer</button></div>
         <h3>Changer le mot de passe</h3>
@@ -253,70 +256,9 @@
     </div>
   </section>
 
-  <!-- ADMIN -->
-  <section class="card hidden" id="view-admin-login">
-    <h2>🔐 Administration</h2>
-    <div class="row">
-      <label>Utilisateur<input id="aUser" autocomplete="username" /></label>
-      <label>Mot de passe<input id="aPass" type="password" autocomplete="current-password" /></label>
-      <label>Code 2FA (si activé)<input id="aCode" inputmode="numeric" /></label>
-    </div>
-    <button id="btnAdminLogin">Se connecter</button>
-    <p><button id="btnForgot" class="ghost" type="button">Mot de passe oublié ?</button></p>
-    <p class="msg" id="adminMsg"></p>
-    <div id="forgotBox" class="hidden" style="font-size:13px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
-      <b>Récupération d’accès :</b>
-      <ol style="margin:6px 0;padding-left:18px">
-        <li>Demandez à un <b>superadmin</b> de redéfinir votre mot de passe (onglet <b>Admins</b> → <b>Nouv. MDP</b>).</li>
-        <li>Sans superadmin disponible : sur le serveur, <code>node scripts/admin.mjs reset-password &lt;utilisateur&gt; &lt;nouveau-mot-de-passe&gt;</code>.</li>
-      </ol>
-    </div>
-  </section>
 
-  <section id="view-admin" class="hidden">
-    <div class="card"><h2 style="margin:0">🧭 Pilotage — <span id="aQui"></span></h2></div>
-    <div class="tabs" id="adminTabs">
-      <button data-v="dash" class="on ghost">Indicateurs</button>
-      <button data-v="comptes" class="ghost">Comptes</button>
-      <button data-v="forfaits" class="ghost">Forfaits</button>
-      <button data-v="paiements" class="ghost">Paiements</button>
-      <button data-v="audit" class="ghost">Journal</button>
-      <button data-v="admins" class="ghost">Admins</button>
-      <button data-v="motdepasse" class="ghost">Mot de passe</button>
-      <button data-v="reglages" class="ghost">Réglages</button>
-    </div>
-    <div id="a-dash"><div class="card"><h2>Indicateurs</h2><div id="aStats" style="font-size:13px"></div><button id="btnExpire" class="ghost">Figer les abonnements expirés</button></div></div>
-    <div id="a-comptes" class="hidden">
-      <div class="card">
-        <h2>Comptes</h2>
-        <div class="row">
-          <label>Type<select id="fType"><option value="">Tous</option><option value="particulier">Particulier</option><option value="entreprise">Entreprise</option></select></label>
-          <label>Statut<select id="fStatut"><option value="">Tous</option><option value="inscription_recue">Inscription reçue</option><option value="en_attente_paiement">En attente de paiement</option><option value="paiement_a_verifier">Paiement à vérifier</option><option value="en_attente_validation">En attente de validation</option><option value="actif">Actif</option><option value="expire">Expiré</option><option value="suspendu">Suspendu</option><option value="refuse">Refusé</option></select></label>
-          <label>Recherche<input id="fQ" placeholder="nom, téléphone, utilisateur" /></label>
-          <div><button id="btnComptes" class="ghost">Filtrer</button></div>
-        </div>
-        <div style="overflow:auto;margin-top:8px"><table><thead><tr><th>Compte</th><th>Type</th><th>Statut</th><th>Forfait / paiement</th><th></th></tr></thead><tbody id="aRows"></tbody></table></div>
-        <p class="msg" id="compteMsg"></p>
-      </div>
-    </div>
-    <div id="a-forfaits" class="hidden"><div class="card"><h2>Forfaits</h2><div id="aPlans" style="font-size:12px"></div><h3>Nouveau / modifier</h3><div class="row"><label>Nom<input id="plNom" /></label><label>Type<select id="plType"><option value="particulier">Particulier</option><option value="entreprise">Entreprise</option></select></label><label>Prix<input id="plPrix" type="number" /></label><label>Durée<select id="plDuree"><option value="mensuel">Mensuelle</option><option value="trimestriel">Trimestrielle</option><option value="annuel">Annuelle</option></select></label><label>Véhicules max<input id="plLimite" type="number" placeholder="vide = illimité" /></label><label>Géorepérage<select id="plGeo"><option value="0">Non</option><option value="1">Oui</option></select></label></div><div class="row"><button id="btnPlanSave">Enregistrer</button></div><p class="msg" id="planMsg"></p></div></div>
-    <div id="a-paiements" class="hidden"><div class="card"><h2>Paiements</h2><div class="row"><label>Statut<select id="payStatut"><option value="a_verifier">À vérifier</option><option value="en_attente">En attente</option><option value="confirme">Confirmés</option><option value="refuse">Refusés</option></select></label><div><button id="btnPays" class="ghost">Filtrer</button></div></div><div id="aPays" style="font-size:12px;margin-top:8px"></div><p class="msg" id="payMsg"></p></div></div>
-    <div id="a-audit" class="hidden"><div class="card"><h2>Journal d’audit</h2><div id="aAudit" style="font-size:12px"></div></div></div>
-    <div id="a-reglages" class="hidden"><div class="card"><h2>Réglages</h2><label style="flex-direction:row;align-items:center;gap:8px"><input id="setAuto" type="checkbox" style="width:auto" /> Activation automatique après paiement confirmé</label><button id="btnSettings" class="ghost">Enregistrer</button></div></div>
-    <div id="a-admins" class="hidden"><div class="card">
-      <h2>Administrateurs <small style="font-weight:normal">(superadmin uniquement)</small></h2>
-      <div style="overflow:auto"><table><thead><tr><th>Utilisateur</th><th>Rôle</th><th>Actif</th><th>Créé le</th><th></th></tr></thead><tbody id="aAdmins"></tbody></table></div>
-      <h3>Nouvel administrateur</h3>
-      <div class="row"><label>Utilisateur<input id="naUser" autocomplete="off" /></label><label>Mot de passe (10+)<input id="naPass" type="password" autocomplete="new-password" /></label><label>Rôle<select id="naRole"><option value="admin">admin</option><option value="superadmin">superadmin</option></select></label><div><button id="btnAdminCreate">Créer</button></div></div>
-      <p class="msg" id="adminsMsg"></p>
-    </div></div>
-    <div id="a-motdepasse" class="hidden"><div class="card">
-      <h2>Redéfinir mon mot de passe</h2>
-      <div class="row"><label>Ancien mot de passe<input id="pwAdmOld" type="password" autocomplete="current-password" /></label><label>Nouveau (10+)<input id="pwAdmNew" type="password" autocomplete="new-password" /></label><div><button id="btnAdminPw">Changer</button></div></div>
-      <p class="msg" id="adminPwMsg"></p>
-    </div></div>
-  </section>
 </main>
+<footer style="max-width:1100px;margin:auto;padding:0 14px 30px;font-size:12px;color:#64748b;text-align:center"><a href="/admin.html" style="color:#64748b">Espace administrateur</a></footer>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/app.js"></script>
 </body>
