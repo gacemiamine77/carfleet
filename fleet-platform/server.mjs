@@ -19,9 +19,13 @@ import {
   listeAdmins,
   login as loginAdmin,
   logout as logoutAdmin,
+  marquerVolsVus,
   paiements,
+  positionsAdmin,
   reglages,
-  stats as statsAdmin
+  stats as statsAdmin,
+  vehiculesAdmin,
+  vols
 } from "./src/routes/admin.mjs";
 import { addDriver, listDrivers, patchDriver } from "./src/routes/drivers.mjs";
 import { history, live, reportTheft, resolveTheft, sharedTheft, stats } from "./src/routes/fleet.mjs";
@@ -150,6 +154,10 @@ async function router(req, res) {
   if (route === "PATCH /api/admin/paiements") return gererPaiement(req, res);
   if (route === "POST /api/admin/abonnements") return creerAbonnement(req, res);
   if (route === "GET /api/admin/audit") return journal(req, res);
+  if (route === "GET /api/admin/vols") return vols(req, res);
+  if (route === "POST /api/admin/vols/vus") return marquerVolsVus(req, res);
+  if (route === "GET /api/admin/vehicules") return vehiculesAdmin(req, res);
+  if (route === "GET /api/admin/positions") return positionsAdmin(req, res);
   if (route === "POST /api/admin/maintenance/expirations") return expirations(req, res);
   if (url.pathname === "/api/admin/reglages" && (req.method === "GET" || req.method === "PATCH")) return reglages(req, res);
   if (url.pathname.startsWith("/api/")) return sendJson(res, 404, { error: "Route inconnue" });

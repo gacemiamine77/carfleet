@@ -147,6 +147,15 @@ export async function compteUtilisable(ownerId) {
   return { ok: true, abonnement: sub };
 }
 
+// Dossier de vol ouvert pour un véhicule (ou null). Sert l'exception suivi-vol et la console admin.
+export async function dossierVolOuvert(vehicleId) {
+  const { rows } = await query(
+    `SELECT id, owner_id, reported_at FROM fleet_theft_cases WHERE vehicle_id = $1 AND status = 'open' ORDER BY id DESC LIMIT 1`,
+    [vehicleId]
+  );
+  return rows[0] || null;
+}
+
 export async function statutProprietaireVehicule(vehicleId) {
   const { rows } = await query(
     `SELECT o.id, o.statut_compte FROM fleet_vehicles v JOIN fleet_owners o ON o.id = v.owner_id WHERE v.id = $1 LIMIT 1`,

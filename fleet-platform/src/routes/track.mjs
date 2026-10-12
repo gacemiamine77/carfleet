@@ -1,7 +1,7 @@
 import { query } from "../db.mjs";
 import { readJson, sendJson } from "../http.mjs";
 import { activeDriver, vehicleBySerial } from "../fleet.mjs";
-import { compteUtilisable } from "../lifecycle.mjs";
+import { compteUtilisable, dossierVolOuvert } from "../lifecycle.mjs";
 import { coordinate, dansZone, driverNin, finiteNumber, haversineMeters, optionalText, parseDate, text } from "../validation.mjs";
 
 function tripId(vehicleId) {
@@ -77,8 +77,10 @@ export async function ingest(req, res) {
           continue;
         }
         // Exigence fondamentale : pas de suivi réel sans compte activé.
+        // Exception vol : dossier ouvert → les points sont conservés pour localisation
+        // (visible admin uniquement, l'abonné reste verrouillé côté live/historique).
         const gate = await compteUtilisable(vehicle.owner_id);
-        if (!gate.ok) {
+        if (!gate.ok && !(await dossierVolOuvert(vehicle.id))) {
           rejected += 1;
           continue;
         }

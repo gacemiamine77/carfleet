@@ -540,3 +540,114 @@ export async function reglages(req, res, auth) {
   }
   return sendJson(res, 200, { ok: true });
 }
+
+// GET /api/admin/vols → dossiers ouverts + résolus non vus, avec abonné et dernière position.
+export async function vols(req, res, auth) {
+  const admin = auth || (await requireAdmin(req));
+  if (!admin) return sendJson(res, 401, { error: "Non authentifié" });
+  const { rows } = await query(
+    `SELECT c.id AS dossier, c.status, c.reported_at, c.resolved_at, c.note, c.vu_par_admin,
+            v.id AS vehicle_id, v.immatriculation, v.marque, v.modele, v.couleur,
+            o.id AS owner_id, o.nom, o.prenom, o.raison_sociale, o.telephone, o.statut_compte,
+            a.username,
+            p.latitude, p.longitude, p.speed, p.recorded_at AS position_at
+       FROM fleet_theft_cases c
+       JOIN fleet_vehicles v ON v.id = c.vehicle_id
+       JOIN fleet_owners o ON o.id = c.owner_id
+       LEFT JOIN fleet_owner_accounts a ON a.owner_id = o.id
+       LEFT JOIN fleet_current_positions p ON p.vehicle_id = v.id
+      WHERE c.status = 'open' OR (c.status = 'resolved' AND c.vu_par_admin = FALSE)
+      ORDER BY c.vu_par_admin ASC, c.id DESC LIMIT 100`
+  );
+  return sendJson(res, 200, { vols: rows });
+}
+
+// POST /api/admin/vols/vus {dossierId?} → marque la pastille comme vue.
+export async function marquerVolsVus(req, res, auth) {
+  const admin = auth || (await requireAdmin(req));
+  if (!admin) return sendJson(res, 401, { error: "Non authentifié" });
+  const body = await readJson(req).catch(() => ({}));
+  if (body.dossierId) {
+    await query(`UPDATE fleet_theft_cases SET vu_par_admin = TRUE WHERE id = $1`, [Number(body.dossierId)]);
+  } else {
+    await query(`UPDATE fleet_theft_cases SET vu_par_admin = TRUE WHERE status = 'open' OR vu_par_admin = FALSE`);
+  }
+  return sendJson(res, 200, { ok: true });
+}
+
+// GET /api/admin/vehicules?q&vole=1&horsZone=1&limit → registre + dernière position + flags.
+export async function vehiculesAdmin(req, res, auth) {
+  const admin = auth || (await requireAdmin(req));
+  if (!admin) return sendJson(res, 401, { error: "Non authentifié" });
+  const url = new URL(req.url, "http://localhost");
+  const conditions = [];
+  const values = [];
+  if (url.searchParams.get("vole") === "1") {
+    conditions.push(`(v.is_stolen OR EXISTS (SELECT 1 FROM fleet_theft_cases t WHERE t.vehicle_id = v.id AND t.status = 'open'))`);
+  }
+  if (url.searchParams.get("horsZone") === "1") {
+    conditions.push(`EXISTS (SELECT 1 FROM fleet_geofence_vehicles gv
+       JOIN fleet_geofences g ON g.id = gv.geofence_id AND g.actif
+       LEFT JOIN fleet_geofence_states st ON st.vehicle_id = v.id AND st.geofence_id = g.id
+      WHERE gv.vehicle_id = v.id AND gv.actif AND st.inside = FALSE)`);
+  }
+  const q = (url.searchParams.get("q") || "").trim();
+  if (q) {
+    values.push(`%${q}%`);
+    conditions.push(`(v.immatriculation ILIKE $${values.length} OR o.nom ILIKE $${values.length} OR o.raison_sociale ILIKE $${values.length} OR o.telephone ILIKE $${values.length})`);
+  }
+  const limit = Math.min(500, Math.max(10, Number(url.searchParams.get("limit") || 200)));
+  const { rows } = await query(
+    `SELECT v.id, v.immatriculation, v.marque, v.modele, v.couleur, v.is_stolen, v.actif,
+            o.id AS owner_id, o.nom, o.prenom, o.raison_sociale, o.telephone, o.statut_compte,
+            c.latitude, c.longitude, c.speed, c.recorded_at AS position_at,
+            EXISTS (SELECT 1 FROM fleet_theft_cases t WHERE t.vehicle_id = v.id AND t.status = 'open') AS vol_ouvert,
+            COALESCE((SELECT array_agg(g.nom) FROM fleet_geofence_vehicles gv
+               JOIN fleet_geofences g ON g.id = gv.geofence_id AND g.actif
+               LEFT JOIN fleet_geofence_states st ON st.vehicle_id = v.id AND st.geofence_id = g.id
+              WHERE gv.vehicle_id = v.id AND gv.actif AND st.inside = FALSE), '{}') AS zones_hors
+       FROM fleet_vehicles v
+       JOIN fleet_owners o ON o.id = v.owner_id
+       LEFT JOIN fleet_current_positions c ON c.vehicle_id = v.id
+      ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
+      ORDER BY v.id DESC LIMIT ${limit}`,
+    values
+  );
+  return sendJson(res, 200, { vehicules: rows });
+}
+
+// GET /api/admin/positions?vehicleId&debut&fin&limit → itinéraire d'un véhicule (tout abonné).
+export async function positionsAdmin(req, res, auth) {
+  const admin = auth || (await requireAdmin(req));
+  if (!admin) return sendJson(res, 401, { error: "Non authentifié" });
+  const url = new URL(req.url, "http://localhost");
+  const vehicleId = Number(url.searchParams.get("vehicleId"));
+  if (!vehicleId) return sendJson(res, 400, { error: "vehicleId requis" });
+  const vehicle = (
+    await query(
+      `SELECT v.id, v.immatriculation, v.marque, v.modele, v.couleur, v.is_stolen,
+              o.nom, o.prenom, o.raison_sociale, o.telephone
+         FROM fleet_vehicles v JOIN fleet_owners o ON o.id = v.owner_id WHERE v.id = $1 LIMIT 1`,
+      [vehicleId]
+    )
+  ).rows[0];
+  if (!vehicle) return sendJson(res, 404, { error: "Véhicule introuvable" });
+  const debut = url.searchParams.get("debut") ? new Date(url.searchParams.get("debut")) : new Date(Date.now() - 24 * 3600 * 1000);
+  const fin = url.searchParams.get("fin") ? new Date(url.searchParams.get("fin")) : new Date();
+  const limit = Math.min(5000, Math.max(10, Number(url.searchParams.get("limit") || 3000)));
+  if (Number.isNaN(debut.getTime()) || Number.isNaN(fin.getTime())) return sendJson(res, 400, { error: "Dates invalides" });
+  const { rows } = await query(
+    `SELECT latitude, longitude, speed, heading, recorded_at, distance_m FROM fleet_positions
+      WHERE vehicle_id = $1 AND recorded_at >= $2 AND recorded_at <= $3
+      ORDER BY recorded_at ASC, id ASC LIMIT $4`,
+    [vehicleId, debut, fin, limit]
+  );
+  const distanceKm = rows.length ? Math.max(0, (Number(rows[rows.length - 1].distance_m) || 0) - (Number(rows[0].distance_m) || 0)) / 1000 : 0;
+  return sendJson(res, 200, {
+    vehicule: vehicle,
+    debut,
+    fin,
+    distanceKm: Math.round(distanceKm * 10) / 10,
+    points: rows
+  });
+}

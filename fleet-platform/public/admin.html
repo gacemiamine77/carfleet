@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Administration — Fleet Platform</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     :root{--vert:#0f3d2e;--fond:#eef2f7;--carte:#fff;--txt:#0f172a;--mut:#64748b;--rouge:#b91c1c;--orange:#d97706;--bleu:#1d4ed8}
     *{box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:var(--fond);color:var(--txt)}
@@ -35,6 +36,7 @@
     .kpi-n{font-size:22px;font-weight:800}.kpi-l{font-size:12px;font-weight:700}
     .kpi-card small{font-size:11px;color:var(--mut)}
     .kpi-card.ok{border-left:4px solid #16a34a}.kpi-card.warn{border-left:4px solid var(--orange)}.kpi-card.bad{border-left:4px solid var(--rouge)}
+    #amap{height:60vh;min-height:360px;border-radius:12px;position:relative;z-index:0}
     .msg{font-size:13px;min-height:18px}
     .err{color:var(--rouge)}.ok{color:#166534}
   </style>
@@ -76,6 +78,8 @@
       <button data-v="comptes" class="ghost">Comptes</button>
       <button data-v="forfaits" class="ghost">Forfaits</button>
       <button data-v="paiements" class="ghost">Paiements</button>
+      <button data-v="vols" class="ghost" id="tabVols">Vols</button>
+      <button data-v="carte" class="ghost">Carte</button>
       <button data-v="audit" class="ghost">Journal</button>
       <button data-v="admins" class="ghost">Admins</button>
       <button data-v="motdepasse" class="ghost">Mot de passe</button>
@@ -97,6 +101,13 @@
     </div>
     <div id="a-forfaits" class="hidden"><div class="card"><h2>Forfaits</h2><div id="aPlans" style="font-size:12px"></div><h3>Nouveau / modifier</h3><div class="row"><label>Nom<input id="plNom" /></label><label>Type<select id="plType"><option value="particulier">Particulier</option><option value="entreprise">Entreprise</option></select></label><label>Prix<input id="plPrix" type="number" /></label><label>Durée<select id="plDuree"><option value="mensuel">Mensuelle</option><option value="trimestriel">Trimestrielle</option><option value="annuel">Annuelle</option></select></label><label>Véhicules max<input id="plLimite" type="number" placeholder="vide = illimité" /></label><label>Géorepérage<select id="plGeo"><option value="0">Non</option><option value="1">Oui</option></select></label></div><div class="row"><button id="btnPlanSave">Enregistrer</button><button id="btnPlanNew" class="ghost">Nouveau</button></div><p class="msg" id="planMsg"></p></div></div>
     <div id="a-paiements" class="hidden"><div class="card"><h2>Paiements</h2><div class="row"><label>Statut<select id="payStatut"><option value="a_verifier">À vérifier</option><option value="en_attente">En attente</option><option value="confirme">Confirmés</option><option value="refuse">Refusés</option></select></label><div><button id="btnPays" class="ghost">Filtrer</button></div></div><div style="overflow:auto;margin-top:8px"><table><thead><tr><th>Date</th><th>Abonné</th><th>Forfait</th><th>Montant</th><th>Méthode</th><th>Référence</th><th>Statut</th><th></th></tr></thead><tbody id="aPaysRows"></tbody></table></div><p class="msg" id="payMsg"></p></div></div>
+    <div id="a-vols" class="hidden"><div class="card"><h2>Vols déclarés</h2><div style="overflow:auto"><table><thead><tr><th>Dossier</th><th>Véhicule</th><th>Abonné</th><th>Dernière position</th><th>Note</th><th></th></tr></thead><tbody id="aVolsRows"></tbody></table></div></div></div>
+    <div id="a-carte" class="hidden"><div class="card"><h2>Carte — positions et itinéraires</h2>
+      <div class="row"><label style="flex-direction:row;align-items:center;gap:6px"><input id="aVehVoles" type="checkbox" style="width:auto" /> Volés uniquement</label><label style="flex-direction:row;align-items:center;gap:6px"><input id="aVehHorsZone" type="checkbox" style="width:auto" /> Hors zone uniquement</label><label>Recherche<input id="aVehQ" placeholder="immatriculation, nom, téléphone" /></label><div><button id="btnAVeh" class="ghost">Afficher</button></div></div>
+      <div class="row" style="margin-top:8px"><label>Véhicule<select id="aVehSel"></select></label><label>Du<input id="aDebut" type="datetime-local" /></label><label>Au<input id="aFin" type="datetime-local" /></label><div><button id="btnAItineraire">Itinéraire</button></div></div>
+      <div id="aItInfo" style="font-size:12px;margin-top:6px"></div>
+      <div id="amap" style="margin-top:8px"></div>
+    </div></div>
     <div id="a-audit" class="hidden"><div class="card"><h2>Journal d’audit</h2><div id="aAudit" style="font-size:12px"></div></div></div>
     <div id="a-admins" class="hidden"><div class="card">
       <h2>Administrateurs <small style="font-weight:normal">(superadmin uniquement)</small></h2>
@@ -113,6 +124,7 @@
     <div id="a-reglages" class="hidden"><div class="card"><h2>Réglages</h2><label style="flex-direction:row;align-items:center;gap:8px"><input id="setAuto" type="checkbox" style="width:auto" /> Activation automatique après paiement confirmé</label><h3>Couleurs proposées aux abonnés (une par ligne)</h3><label><textarea id="setCouleurs" rows="6" style="padding:9px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px;width:100%"></textarea></label><button id="btnSettings" class="ghost">Enregistrer</button><p class="msg" id="settingsMsg"></p></div></div>
   </section>
 </main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/admin.js"></script>
 </body>
 </html>

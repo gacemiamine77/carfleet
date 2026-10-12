@@ -3,7 +3,7 @@ import { query } from "../db.mjs";
 import { requireOwner } from "../auth.mjs";
 import { readJson, sendJson } from "../http.mjs";
 import { activeDriver, vehicleForOwner } from "../fleet.mjs";
-import { compteUtilisable } from "../lifecycle.mjs";
+import { audit, compteUtilisable } from "../lifecycle.mjs";
 import { optionalText } from "../validation.mjs";
 
 async function gate(session) {
@@ -164,7 +164,11 @@ export async function reportTheft(req, res, auth) {
        VALUES($1,$2,'open',$3,$4,$5) RETURNING *`,
       [vehicle.id, session.owner.id, token, expires, optionalText(body.note, 2000)]
     );
-    return sendJson(res, 200, { ok: true, dossier: publicCase(created.rows[0]) });
+    const dossier = created.rows[0];
+    // Alerte admin : pastille "non vu" + trace d'audit (le suivi reste localisable côté admin).
+    await query(`UPDATE fleet_theft_cases SET signale_admin_at = now(), vu_par_admin = FALSE WHERE id = $1`, [dossier.id]);
+    await audit(null, "declaration_vol", "vol", dossier.id, { vehicle: vehicle.id, owner: session.owner.id, partage: share });
+    return sendJson(res, 200, { ok: true, dossier: publicCase(dossier) });
   } catch (error) {
     return sendJson(res, 500, { error: String(error.message || error) });
   }
@@ -177,21 +181,27 @@ export async function resolveTheft(req, res, auth) {
     const body = await readJson(req);
     const vehicle = await vehicleForOwner(session.owner.id, { id: body.vehicleId || body.vehiculeId, carId: body.carId });
     if (!vehicle && !body.caseId) return sendJson(res, 404, { error: "Véhicule introuvable" });
+    const resolus = [];
     if (body.caseId) {
-      await query(
+      const r = await query(
         `UPDATE fleet_theft_cases SET status = 'resolved', resolved_at = now(), share_token = NULL, share_expires_at = NULL
-          WHERE id = $1 AND owner_id = $2 AND status = 'open'`,
+          WHERE id = $1 AND owner_id = $2 AND status = 'open' RETURNING id, vehicle_id`,
         [Number(body.caseId), session.owner.id]
       );
+      resolus.push(...r.rows);
     } else {
-      await query(
+      const r = await query(
         `UPDATE fleet_theft_cases SET status = 'resolved', resolved_at = now(), share_token = NULL, share_expires_at = NULL
-          WHERE vehicle_id = $1 AND owner_id = $2 AND status = 'open'`,
+          WHERE vehicle_id = $1 AND owner_id = $2 AND status = 'open' RETURNING id, vehicle_id`,
         [vehicle.id, session.owner.id]
       );
+      resolus.push(...r.rows);
     }
-    if (vehicle) {
-      await query(`UPDATE fleet_vehicles SET is_stolen = FALSE, stolen_reported_at = NULL, updated_at = now() WHERE id = $1`, [vehicle.id]);
+    for (const d of resolus) {
+      await query(`UPDATE fleet_vehicles SET is_stolen = FALSE, stolen_reported_at = NULL, updated_at = now() WHERE id = $1`, [d.vehicle_id]);
+      // L'admin est informé de la résolution (pastille + audit).
+      await query(`UPDATE fleet_theft_cases SET vu_par_admin = FALSE WHERE id = $1`, [d.id]);
+      await audit(null, "resolution_vol", "vol", d.id, { vehicle: d.vehicle_id, owner: session.owner.id });
     }
     return sendJson(res, 200, { ok: true });
   } catch (error) {
