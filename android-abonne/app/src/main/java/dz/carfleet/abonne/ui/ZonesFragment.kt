@@ -61,16 +61,7 @@ class ZonesFragment : Fragment() {
         val btnCreer = Ui.bouton(ctx, "Créer la zone")
         val mv = MapView(ctx).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(ctx, 320)) }
         map = mv
-        mv.setTileSource(
-            XYTileSource(
-                "OSMFrance", 0, 20, 256, ".png",
-                arrayOf(
-                    "https://a.tile.openstreetmap.fr/osmfr/",
-                    "https://b.tile.openstreetmap.fr/osmfr/",
-                    "https://c.tile.openstreetmap.fr/osmfr/"
-                )
-            )
-        )
+        Tiles.appliquer(mv, 0)
         mv.setMultiTouchControls(true)
         mv.controller.setZoom(6.0)
         mv.controller.setCenter(GeoPoint(35.8, 3.0))
@@ -102,6 +93,7 @@ class ZonesFragment : Fragment() {
         rowBtn.addView(btnTerminer)
         rowBtn.addView(btnCreer)
         box.addView(rowBtn)
+        box.addView(Tiles.spinner(ctx, 0) { Tiles.appliquer(mv, it) })
         box.addView(mv)
         box.addView(Ui.titre(ctx, "Mes zones", 16f))
         box.addView(listZones)

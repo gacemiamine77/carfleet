@@ -19,6 +19,7 @@ import dz.carfleet.abonne.api.ApiClient
 import dz.carfleet.abonne.api.ApiHelper
 import dz.carfleet.abonne.api.ApiResult
 import dz.carfleet.abonne.data.SessionManager
+import dz.carfleet.abonne.ui.Tiles
 import dz.carfleet.abonne.ui.Ui
 import kotlinx.coroutines.launch
 import org.osmdroid.tileprovider.tilesource.XYTileSource
@@ -68,16 +69,7 @@ class AdminMapFragment : Fragment() {
         val tvInfo = Ui.texte(ctx, "🔴 volé · 🟠 hors zone · 🟢 en règle", 13f)
         val mv = MapView(ctx).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(ctx, 340)) }
         map = mv
-        mv.setTileSource(
-            XYTileSource(
-                "OSMFrance", 0, 20, 256, ".png",
-                arrayOf(
-                    "https://a.tile.openstreetmap.fr/osmfr/",
-                    "https://b.tile.openstreetmap.fr/osmfr/",
-                    "https://c.tile.openstreetmap.fr/osmfr/"
-                )
-            )
-        )
+        Tiles.appliquer(mv, 0)
         mv.setMultiTouchControls(true)
         mv.controller.setZoom(6.0)
         mv.controller.setCenter(GeoPoint(35.8, 3.0))
@@ -85,6 +77,7 @@ class AdminMapFragment : Fragment() {
         box.addView(cbHorsZone)
         box.addView(etQ)
         box.addView(btnAfficher)
+        box.addView(Tiles.spinner(ctx, 0) { Tiles.appliquer(mv, it) })
         box.addView(mv)
         box.addView(spVeh)
         box.addView(btnItineraire)

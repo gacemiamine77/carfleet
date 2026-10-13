@@ -230,10 +230,21 @@ async function marquerVolsVus() {
 
 // ---------- Carte admin : positions et itinéraires ----------
 let amap = null, alayer = null, aline = null;
+function fondsDeCarteAdmin() {
+  return {
+    "Plan (France)": L.tileLayer("https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap France | © OpenStreetMap", subdomains: "abc", maxZoom: 20 }),
+    "Plan (monde)": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", maxZoom: 19 }),
+    "Satellite": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Imagerie © Esri, Maxar, Earthstar Geographics", maxZoom: 19 }),
+    "Relief": L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { attribution: "© OpenTopoMap (CC-BY-SA) | © OpenStreetMap", subdomains: "abc", maxZoom: 17 }),
+    "Clair": L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { attribution: "© OpenStreetMap | © CARTO", subdomains: "abcd", maxZoom: 20 })
+  };
+}
 function initAMap() {
   if (amap) { setTimeout(() => amap.invalidateSize(), 80); return; }
   amap = L.map("amap").setView([35.8, 3.0], 6);
-  L.tileLayer("https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap France | © OpenStreetMap", subdomains: "abc", maxZoom: 20 }).addTo(amap);
+  const fonds = fondsDeCarteAdmin();
+  fonds["Plan (France)"].addTo(amap);
+  L.control.layers(fonds).addTo(amap);
   alayer = L.layerGroup().addTo(amap);
   aline = L.layerGroup().addTo(amap);
   const fin = new Date(), debut = new Date(Date.now() - 24 * 3600 * 1000);

@@ -354,10 +354,24 @@ document.addEventListener("click", async (e) => {
 });
 
 // ---------- Carte temps réel (positions réelles des dispositifs) ----------
+function fondsDeCarte() {
+  return {
+    "Plan (France)": L.tileLayer("https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap France | © OpenStreetMap", subdomains: "abc", maxZoom: 20 }),
+    "Plan (monde)": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", maxZoom: 19 }),
+    "Satellite": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Imagerie © Esri, Maxar, Earthstar Geographics", maxZoom: 19 }),
+    "Relief": L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { attribution: "© OpenTopoMap (CC-BY-SA) | © OpenStreetMap", subdomains: "abc", maxZoom: 17 }),
+    "Clair": L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { attribution: "© OpenStreetMap | © CARTO", subdomains: "abcd", maxZoom: 20 })
+  };
+}
+function ajouterFonds(carte) {
+  const fonds = fondsDeCarte();
+  fonds["Plan (France)"].addTo(carte);
+  L.control.layers(fonds).addTo(carte);
+}
 function initMap() {
   if (map) return;
   map = L.map("map").setView([35.8, 3.0], 6);
-  L.tileLayer("https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap France | © OpenStreetMap", subdomains: "abc", maxZoom: 20 }).addTo(map);
+  ajouterFonds(map);
   layer = L.layerGroup().addTo(map);
   setTimeout(() => map.invalidateSize(), 80);
 }
@@ -408,7 +422,7 @@ $("btnHist").onclick = async () => {
 function initZMap() {
   if (zmap) { setTimeout(() => zmap.invalidateSize(), 80); return; }
   zmap = L.map("zmap").setView([35.8, 3.0], 6);
-  L.tileLayer("https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap France | © OpenStreetMap", subdomains: "abc", maxZoom: 20 }).addTo(zmap);
+  ajouterFonds(zmap);
   zlayer = L.layerGroup().addTo(zmap);
   zdraft = L.layerGroup().addTo(zmap);
   zmap.on("click", (e) => {

@@ -39,14 +39,8 @@ class FleetMapFragment : Fragment() {
         ApiClient.init(session.baseUrl)
         val mv = view.findViewById<MapView>(R.id.osmMap)
         map = mv
-        mv.setTileSource(XYTileSource(
-            "OSMFrance", 0, 20, 256, ".png",
-            arrayOf(
-                "https://a.tile.openstreetmap.fr/osmfr/",
-                "https://b.tile.openstreetmap.fr/osmfr/",
-                "https://c.tile.openstreetmap.fr/osmfr/"
-            )
-        ))
+        Tiles.appliquer(mv, 0)
+        (mv.parent as ViewGroup).addView(Tiles.spinner(requireContext(), 0) { Tiles.appliquer(mv, it) })
         mv.setMultiTouchControls(true)
         mv.controller.setZoom(6.0)
         mv.controller.setCenter(GeoPoint(35.8, 3.0))
