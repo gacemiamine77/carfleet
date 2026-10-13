@@ -7,7 +7,7 @@ let profil = null;
 let statut = null;
 let vehicles = [];
 let zones = [];
-let map = null, layer = null, pollT = null, cadrageAuto = true;
+let map = null, layer = null, hline = null, pollT = null, cadrageAuto = true;
 let zmap = null, zlayer = null, zdraft = null, zVertices = [], zCentre = null;
 const $ = (id) => document.getElementById(id);
 const OFFLINE_MIN = 10;
@@ -373,26 +373,38 @@ function initMap() {
   map = L.map("map").setView([35.8, 3.0], 6);
   ajouterFonds(map);
   layer = L.layerGroup().addTo(map);
+  hline = L.layerGroup().addTo(map);
   setTimeout(() => map.invalidateSize(), 80);
 }
 function drawLive() {
   if (!map || !layer) return;
-  layer.clearLayers();
+  // Marqueurs construits d'abord : un véhicule illisible n'efface plus les autres.
+  const marques = [];
   const bounds = [];
   for (const v of vehicles) {
-    if (!v.live) continue;
-    const s = statutVehicule(v);
-    const couleur = s.cls === "d-move" ? "#16a34a" : s.cls === "d-stop" ? "#f59e0b" : "#94a3b8";
-    L.marker([v.live.latitude, v.live.longitude], {
-      icon: L.divIcon({ className: "", html: `<div style="width:18px;height:18px;border-radius:999px;background:${couleur};border:2px solid #fff;box-shadow:0 1px 4px #0006"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] })
-    }).addTo(layer).bindPopup(`<b>${v.immatriculation}</b><br />${s.txt} · ${v.live.speed || 0} km/h<br />${fmtDate(v.live.recordedAt)}`);
-    bounds.push([v.live.latitude, v.live.longitude]);
+    try {
+      if (!v || !v.live) continue;
+      const lat = Number(v.live.latitude), lon = Number(v.live.longitude);
+      if (!isFinite(lat) || !isFinite(lon)) continue;
+      const s = statutVehicule(v);
+      const couleur = s.cls === "d-move" ? "#16a34a" : s.cls === "d-stop" ? "#f59e0b" : "#94a3b8";
+      const m = L.marker([lat, lon], {
+        icon: L.divIcon({ className: "", html: `<div style="width:18px;height:18px;border-radius:999px;background:${couleur};border:2px solid #fff;box-shadow:0 1px 4px #0006"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] })
+      });
+      m.bindPopup(`<b>${v.immatriculation || ""}</b><br />${s.txt} · ${Math.round(vitesseLive(v))} km/h<br />${fmtDate(v.live.recordedAt)}`);
+      marques.push(m);
+      bounds.push([lat, lon]);
+    } catch { /* on garde les autres véhicules */ }
   }
+  layer.clearLayers();
+  marques.forEach((m) => m.addTo(layer));
   // Recadrage unique : le zoom manuel de l'abonné n'est plus jamais écrasé (bouton Recentrer).
   if (cadrageAuto) {
     cadrageAuto = false;
-    if (bounds.length > 1) map.fitBounds(bounds, { padding: [20, 20] });
-    else if (bounds.length === 1) map.setView(bounds[0], 13);
+    try {
+      if (bounds.length > 1) map.fitBounds(bounds, { padding: [20, 20] });
+      else if (bounds.length === 1) map.setView(bounds[0], 13);
+    } catch { /* bornes invalides : on garde la vue */ }
   }
 }
 $("btnRecentrer").onclick = () => { cadrageAuto = true; drawLive(); showAppTab("carte"); };
@@ -418,10 +430,10 @@ $("btnHist").onclick = async () => {
     const j = await call("/api/fleet/history?" + q.toString());
     $("hInfo").textContent = `${(j.points || []).length} positions · ${j.distanceKm} km · du ${fmtDate(j.debut)} au ${fmtDate(j.fin)}`;
     showAppTab("carte");
-    layer.clearLayers();
+    if (hline) hline.clearLayers();
     const line = (j.points || []).map((p) => [p.latitude, p.longitude]);
-    if (line.length >= 2) {
-      L.polyline(line, { color: "#0f3d2e", weight: 4 }).addTo(layer);
+    if (line.length >= 2 && hline) {
+      L.polyline(line, { color: "#0f3d2e", weight: 4 }).addTo(hline);
       map.fitBounds(line, { padding: [20, 20] });
     }
   } catch (e) { $("hInfo").textContent = e.message; }
