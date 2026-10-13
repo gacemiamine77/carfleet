@@ -374,6 +374,11 @@ function initMap() {
   ajouterFonds(map);
   layer = L.layerGroup().addTo(map);
   hline = L.layerGroup().addTo(map);
+  const lireCoords = (e) => {
+    if (e && e.latlng) $("coordLues").textContent = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+  };
+  map.on("mousemove", lireCoords);
+  map.on("click", lireCoords);
   setTimeout(() => map.invalidateSize(), 80);
 }
 function drawLive() {
@@ -391,7 +396,7 @@ function drawLive() {
       const m = L.marker([lat, lon], {
         icon: L.divIcon({ className: "", html: `<div style="width:18px;height:18px;border-radius:999px;background:${couleur};border:2px solid #fff;box-shadow:0 1px 4px #0006"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] })
       });
-      m.bindPopup(`<b>${v.immatriculation || ""}</b><br />${s.txt} · ${Math.round(vitesseLive(v))} km/h<br />${fmtDate(v.live.recordedAt)}`);
+      m.bindPopup(`<b>${v.immatriculation || ""}</b><br />${s.txt} · ${Math.round(vitesseLive(v))} km/h<br />${lat.toFixed(5)}, ${lon.toFixed(5)}<br />${fmtDate(v.live.recordedAt)}`);
       marques.push(m);
       bounds.push([lat, lon]);
     } catch { /* on garde les autres véhicules */ }
