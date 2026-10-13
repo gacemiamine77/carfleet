@@ -56,7 +56,7 @@ class FleetMapFragment : Fragment() {
                     } catch (e: Exception) {
                         info.text = "Échec : ${e.message}"
                     }
-                    delay(10000)
+                    delay(5000)
                 }
             }
         }
