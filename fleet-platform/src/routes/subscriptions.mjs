@@ -1,7 +1,7 @@
 import { query } from "../db.mjs";
 import { requireOwner } from "../auth.mjs";
 import { readJson, sendJson } from "../http.mjs";
-import { dernierAbonnement, lireCouleurs, notifier, verifierExpiration } from "../lifecycle.mjs";
+import { audit, dernierAbonnement, lireCouleurs, notifier, verifierExpiration } from "../lifecycle.mjs";
 
 // GET /api/fleet/plans?type=particulier|entreprise → forfaits actifs (public).
 export async function plans(req, res) {
@@ -22,11 +22,101 @@ export async function couleurs(req, res) {
   return sendJson(res, 200, { couleurs: await lireCouleurs() });
 }
 
+// POST /api/fleet/abonnement/annuler {abonnementId?} → résiliation immédiate (suivi coupé).
+export async function annulerAbonnement(req, res, auth) {
+  const session = auth || (await requireOwner(req));
+  if (!session) return sendJson(res, 401, { error: "Non authentifié" });
+  try {
+    const body = await readJson(req).catch(() => ({}));
+    const sub = body.abonnementId
+      ? (await query(`SELECT * FROM fleet_subscriptions WHERE id = $1 AND owner_id = $2 LIMIT 1`, [Number(body.abonnementId), session.owner.id])).rows[0]
+      : await dernierAbonnement(session.owner.id);
+    if (!sub) return sendJson(res, 404, { error: "Aucun abonnement" });
+    if (!["actif", "en_attente_paiement", "paiement_a_verifier", "en_attente_validation"].includes(sub.statut)) {
+      return sendJson(res, 400, { error: `Abonnement déjà clôturé (${sub.statut})` });
+    }
+    // Règle : aucun remboursement une fois l'abonnement engagé et payé.
+    const payes = (
+      await query(`SELECT COUNT(*)::int AS n FROM fleet_payments WHERE subscription_id = $1 AND statut = 'confirme'`, [sub.id])
+    ).rows[0]?.n || 0;
+    await query(`UPDATE fleet_subscriptions SET statut = 'annule', updated_at = now() WHERE id = $1`, [sub.id]);
+    await query(`UPDATE fleet_owners SET statut_compte = 'resilie', motif = NULL WHERE id = $1`, [session.owner.id]);
+    await notifier(session.owner.id, {
+      type: "abonnement",
+      titre: "Abonnement résilié",
+      corps:
+        "Votre suivi est interrompu. Vous pouvez souscrire à nouveau à tout moment depuis votre profil." +
+        (payes > 0 ? " Abonnement engagé et payé : aucun remboursement." : "")
+    });
+    await audit(null, "resiliation_abonnement", "abonnement", sub.id, { owner: session.owner.id, sansRemboursement: payes > 0 });
+    return sendJson(res, 200, { ok: true, sansRemboursement: payes > 0 });
+  } catch (error) {
+    return sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
+// POST /api/fleet/compte/suppression {password} → demande d'effacement (verrouille le suivi).
+export async function demanderSuppression(req, res, auth) {
+  const session = auth || (await requireOwner(req));
+  if (!session) return sendJson(res, 401, { error: "Non authentifié" });
+  try {
+    const body = await readJson(req).catch(() => ({}));
+    const { verifyPassword } = await import("../auth.mjs");
+    const account = (
+      await query(`SELECT password_hash FROM fleet_owner_accounts WHERE id = $1 LIMIT 1`, [session.accountId])
+    ).rows[0];
+    if (!account || !verifyPassword(String(body.password || ""), account.password_hash)) {
+      return sendJson(res, 403, { error: "Mot de passe incorrect" });
+    }
+    const owner = (await query(`SELECT statut_compte FROM fleet_owners WHERE id = $1 LIMIT 1`, [session.owner.id])).rows[0];
+    if (owner && owner.statut_compte === "suppression_demandee") {
+      return sendJson(res, 200, { ok: true, dejaDemande: true });
+    }
+    await query(
+      `UPDATE fleet_owners SET statut_compte = 'suppression_demandee', motif = $1 WHERE id = $2`,
+      [`Effacement demandé le ${new Date().toLocaleDateString("fr-FR")}`, session.owner.id]
+    );
+    await notifier(session.owner.id, {
+      type: "suppression",
+      titre: "Demande d'effacement reçue",
+      corps: "Votre demande de suppression du compte et de toutes vos données est en cours de traitement par l'administrateur. Le suivi est interrompu."
+    });
+    await audit(null, "demande_suppression_compte", "compte", session.owner.id, {});
+    return sendJson(res, 200, { ok: true });
+  } catch (error) {
+    return sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
+// POST /api/fleet/compte/suppression/annuler → retire la demande (réactive selon abonnement).
+export async function annulerSuppression(req, res, auth) {
+  const session = auth || (await requireOwner(req));
+  if (!session) return sendJson(res, 401, { error: "Non authentifié" });
+  try {
+    const owner = (await query(`SELECT statut_compte FROM fleet_owners WHERE id = $1 LIMIT 1`, [session.owner.id])).rows[0];
+    if (!owner || owner.statut_compte !== "suppression_demandee") {
+      return sendJson(res, 400, { error: "Aucune demande de suppression en cours" });
+    }
+    const sub = await dernierAbonnement(session.owner.id);
+    const statut = sub && sub.statut === "actif" && sub.fin_at && new Date(sub.fin_at) > new Date() ? "actif" : "expire";
+    await query(`UPDATE fleet_owners SET statut_compte = $1, motif = NULL WHERE id = $2`, [statut, session.owner.id]);
+    await notifier(session.owner.id, { type: "suppression", titre: "Demande retirée", corps: "Votre demande d'effacement a été annulée." });
+    await audit(null, "annulation_suppression_compte", "compte", session.owner.id, {});
+    return sendJson(res, 200, { ok: true });
+  } catch (error) {
+    return sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
 // POST /api/fleet/abonnement {planId, methode?} → crée abonnement + paiement.
 export async function choisir(req, res, auth) {
   const session = auth || (await requireOwner(req));
   if (!session) return sendJson(res, 401, { error: "Non authentifié" });
   try {
+    const proprietaire = (await query(`SELECT statut_compte FROM fleet_owners WHERE id = $1 LIMIT 1`, [session.owner.id])).rows[0];
+    if (proprietaire && proprietaire.statut_compte === "suppression_demandee") {
+      return sendJson(res, 400, { error: "Suppression en cours : annulez d'abord votre demande de suppression" });
+    }
     const body = await readJson(req);
     const plan = (
       await query(`SELECT * FROM fleet_plans WHERE id = $1 AND actif LIMIT 1`, [Number(body.planId)])
@@ -67,6 +157,10 @@ export async function declarer(req, res, auth) {
   const session = auth || (await requireOwner(req));
   if (!session) return sendJson(res, 401, { error: "Non authentifié" });
   try {
+    const proprietaire = (await query(`SELECT statut_compte FROM fleet_owners WHERE id = $1 LIMIT 1`, [session.owner.id])).rows[0];
+    if (proprietaire && proprietaire.statut_compte === "suppression_demandee") {
+      return sendJson(res, 400, { error: "Suppression en cours : annulez d'abord votre demande de suppression" });
+    }
     const body = await readJson(req);
     const sub = body.abonnementId
       ? (await query(`SELECT * FROM fleet_subscriptions WHERE id = $1 AND owner_id = $2 LIMIT 1`, [Number(body.abonnementId), session.owner.id])).rows[0]

@@ -165,6 +165,9 @@ async function refreshProfil() {
   $("pAdresse").value = profil.adresse || "";
   const abo = j.abonnement;
   $("zoneNoPlan").classList.toggle("hidden", Boolean(abo && abo.georeperage));
+  const demandeSuppr = profil.statutCompte === "suppression_demandee";
+  $("annulSupprBox").classList.toggle("hidden", !demandeSuppr);
+  if (!demandeSuppr) $("supprBox").classList.add("hidden");
   chargerPlansProfil();
 }
 async function chargerPlansProfil() {
@@ -200,6 +203,33 @@ $("btnPw").onclick = async () => {
   try {
     await call("/api/proprietaires/profil", { method: "PATCH", body: JSON.stringify({ ancienMotDePasse: $("pwOld").value, nouveauMotDePasse: $("pwNew").value }) });
     msg("profilMsg", "Mot de passe changé.", true); $("pwOld").value = ""; $("pwNew").value = "";
+  } catch (e) { msg("profilMsg", e.message); }
+};
+// ---------- Résiliation / suppression du compte ----------
+$("btnResilier").onclick = async () => {
+  if (!confirm("Arrêter l'abonnement ? Le suivi sera interrompu immédiatement. En cas de paiement déjà effectué, aucun remboursement.")) return;
+  try {
+    const j = await call("/api/fleet/abonnement/annuler", { method: "POST", body: JSON.stringify({}) });
+    msg("profilMsg", "Abonnement arrêté." + (j.sansRemboursement ? " Abonnement payé : aucun remboursement." : ""), true);
+    await refreshProfil(); await loadVehicles();
+  } catch (e) { msg("profilMsg", e.message); }
+};
+$("btnSupprToggle").onclick = () => $("supprBox").classList.toggle("hidden");
+$("btnSupprConfirm").onclick = async () => {
+  if (!$("supprPass").value) { msg("profilMsg", "Mot de passe requis pour confirmer."); return; }
+  if (!confirm("Demander l'effacement définitif du compte et de toutes les données ? Le suivi sera interrompu.")) return;
+  try {
+    await call("/api/fleet/compte/suppression", { method: "POST", body: JSON.stringify({ password: $("supprPass").value }) });
+    $("supprPass").value = "";
+    msg("profilMsg", "Demande transmise à l'administrateur.", true);
+    await refreshProfil(); await loadVehicles();
+  } catch (e) { msg("profilMsg", e.message); }
+};
+$("btnAnnulSuppr").onclick = async () => {
+  try {
+    await call("/api/fleet/compte/suppression/annuler", { method: "POST", body: JSON.stringify({}) });
+    msg("profilMsg", "Demande de suppression annulée.", true);
+    await refreshProfil(); await loadVehicles();
   } catch (e) { msg("profilMsg", e.message); }
 };
 

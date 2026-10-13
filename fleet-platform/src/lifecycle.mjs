@@ -1,7 +1,9 @@
 import { query } from "./db.mjs";
 
 // Cycle de vie : inscription_recue → en_attente_paiement → paiement_a_verifier
-// → en_attente_validation → actif → (expire | suspendu | refuse).
+// → en_attente_validation → actif → (expire | suspendu | refuse | resilie | suppression_demandee).
+// resilie = résiliation volontaire (sans remboursement si payé) ; suppression_demandee =
+// effacement demandé, verrouillé en attente de validation admin.
 
 export async function notifier(ownerId, { type = "info", titre, corps = null }) {
   try {

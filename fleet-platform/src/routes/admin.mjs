@@ -147,6 +147,36 @@ export async function gererCompte(req, res, auth) {
       const statut = sub && sub.statut === "actif" && new Date(sub.fin_at) > new Date() ? "actif" : "expire";
       await query(`UPDATE fleet_owners SET statut_compte = $1, motif = NULL WHERE id = $2`, [statut, ownerId]);
       await notifier(ownerId, { type: "activation", titre: "Compte réactivé", corps: "Votre accès est rétabli." });
+    } else if (action === "rejeter_suppression") {
+      if (owner.statut_compte !== "suppression_demandee") {
+        return sendJson(res, 400, { error: "Aucune demande de suppression sur ce compte" });
+      }
+      const sub = await dernierAbonnement(ownerId);
+      const statut = sub && sub.statut === "actif" && sub.fin_at && new Date(sub.fin_at) > new Date() ? "actif" : "expire";
+      await query(`UPDATE fleet_owners SET statut_compte = $1, motif = NULL WHERE id = $2`, [statut, ownerId]);
+      await notifier(ownerId, { type: "suppression", titre: "Demande de suppression refusée", corps: "Votre compte est conservé. Contactez l'administrateur pour plus d'informations." });
+    } else if (action === "supprimer_definitivement") {
+      if (owner.statut_compte !== "suppression_demandee") {
+        return sendJson(res, 400, { error: "Suppression définitive refusée : aucune demande de l'abonné" });
+      }
+      // Chauffeurs liés uniquement à ce compte (les autres sont partagés : conservés).
+      const { rows: exclusifs } = await query(
+        `SELECT DISTINCT a.driver_id FROM fleet_assignments a
+          JOIN fleet_vehicles v ON v.id = a.vehicle_id
+         WHERE v.owner_id = $1 AND NOT EXISTS (
+           SELECT 1 FROM fleet_assignments a2
+            JOIN fleet_vehicles v2 ON v2.id = a2.vehicle_id
+           WHERE a2.driver_id = a.driver_id AND v2.owner_id <> $1
+         )`,
+        [ownerId]
+      );
+      const idsChauffeurs = exclusifs.map((r) => r.driver_id);
+      if (idsChauffeurs.length) {
+        await query(`DELETE FROM fleet_drivers WHERE id = ANY($1)`, [idsChauffeurs]);
+      }
+      // Cascade : comptes, sessions, véhicules (+ positions, trajets, vols, zones liées),
+      // abonnements (+ paiements), notifications, zones. Journal d'audit conservé.
+      await query(`DELETE FROM fleet_owners WHERE id = $1`, [ownerId]);
     } else {
       return sendJson(res, 400, { error: "Action inconnue" });
     }

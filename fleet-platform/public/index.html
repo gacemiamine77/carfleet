@@ -251,6 +251,16 @@
           <label>Nouveau (6+)<input id="pwNew" type="password" /></label>
           <div><button id="btnPw" class="ghost">Changer</button></div>
         </div>
+        <h3>Arrêter / supprimer</h3>
+        <div class="row">
+          <button id="btnResilier" class="danger">Arrêter l'abonnement</button>
+          <button id="btnSupprToggle" class="ghost">Supprimer mon compte…</button>
+        </div>
+        <div id="supprBox" class="hidden" style="font-size:13px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;margin-top:8px">
+          <b>Effacement définitif et irréversible :</b> compte, véhicules, positions, historique, zones, abonnements et paiements seront supprimés après validation par l'administrateur.
+          <div class="row" style="margin-top:8px"><label>Mot de passe (confirmation)<input id="supprPass" type="password" autocomplete="current-password" /></label><div><button id="btnSupprConfirm" class="danger">Confirmer la suppression</button></div></div>
+        </div>
+        <div class="row hidden" id="annulSupprBox" style="margin-top:8px"><button id="btnAnnulSuppr" class="ghost">Annuler ma demande de suppression</button></div>
         <p class="msg" id="profilMsg"></p>
       </div>
     </div>

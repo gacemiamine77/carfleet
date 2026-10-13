@@ -88,7 +88,9 @@ async function chargerComptes() {
     return `<tr><td><b>${nom}</b><br /><small>${c.username || ""} · ${c.telephone || ""} · ${c.nb_vehicules} véh.</small></td>
       <td>${c.type === "morale" ? "Entreprise" : "Particulier"}</td><td><b>${c.statut_compte}</b>${c.motif ? "<br /><small>" + c.motif + "</small>" : ""}</td>
       <td>${abo}<br />${pay}</td>
-      <td><button data-act="valider" data-id="${c.id}" class="ghost">Valider</button> <button data-act="refuser" data-id="${c.id}" class="ghost">Refuser</button> <button data-act="suspendre" data-id="${c.id}" class="ghost">Suspendre</button> <button data-act="reactiver" data-id="${c.id}" class="ghost">Réactiver</button></td></tr>`;
+      <td>${c.statut_compte === "suppression_demandee"
+        ? `<button data-act="rejeter_suppression" data-id="${c.id}" class="ghost">Rejeter demande</button> <button data-act="supprimer_definitivement" data-id="${c.id}" class="ghost">Supprimer tout</button>`
+        : `<button data-act="valider" data-id="${c.id}" class="ghost">Valider</button> <button data-act="refuser" data-id="${c.id}" class="ghost">Refuser</button> <button data-act="suspendre" data-id="${c.id}" class="ghost">Suspendre</button> <button data-act="reactiver" data-id="${c.id}" class="ghost">Réactiver</button>`}</td></tr>`;
   }).join("") || '<tr><td colspan="5">Aucun compte.</td></tr>';
   document.querySelectorAll("#aRows [data-act]").forEach((b) => (b.onclick = async () => {
     try {
@@ -97,6 +99,7 @@ async function chargerComptes() {
         motif = prompt("Motif (obligatoire) :") || "";
         if (!motif.trim()) return;
       }
+      if (b.dataset.act === "supprimer_definitivement" && !confirm("Effacer DÉFINITIVEMENT ce compte et toutes ses données (véhicules, positions, historique, zones, paiements) ? Irréversible.")) return;
       await call("/api/admin/comptes", { method: "PATCH", body: JSON.stringify({ ownerId: Number(b.dataset.id), action: b.dataset.act, motif }) });
       msg("compteMsg", "Action effectuée.", true);
       await chargerComptes(); await chargerStats();

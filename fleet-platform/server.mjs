@@ -38,9 +38,12 @@ import {
   supprimer as supprimerZone
 } from "./src/routes/geofences.mjs";
 import {
+  annulerAbonnement,
+  annulerSuppression,
   choisir as choisirAbonnement,
   couleurs,
   declarer as declarerPaiement,
+  demanderSuppression,
   lireNotifications,
   notifications,
   plans,
@@ -119,7 +122,10 @@ async function router(req, res) {
   if (route === "GET /api/fleet/plans") return plans(req, res);
   if (route === "GET /api/fleet/couleurs") return couleurs(req, res);
   if (route === "POST /api/fleet/abonnement") return choisirAbonnement(req, res);
+  if (route === "POST /api/fleet/abonnement/annuler") return annulerAbonnement(req, res);
   if (route === "POST /api/fleet/paiement/declarer") return declarerPaiement(req, res);
+  if (route === "POST /api/fleet/compte/suppression") return demanderSuppression(req, res);
+  if (route === "POST /api/fleet/compte/suppression/annuler") return annulerSuppression(req, res);
   if (route === "GET /api/fleet/statut") return statutCompte(req, res);
   if (url.pathname === "/api/fleet/geofences" && req.method === "GET") return listerZones(req, res);
   if (url.pathname === "/api/fleet/geofences" && req.method === "POST") return creerZone(req, res);
