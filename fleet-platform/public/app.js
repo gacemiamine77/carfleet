@@ -396,7 +396,16 @@ function drawLive() {
   }
 }
 $("btnRecentrer").onclick = () => { cadrageAuto = true; drawLive(); showAppTab("carte"); };
-function startPoll() { stopPoll(); pollT = setInterval(() => { if (!$("view-app").classList.contains("hidden")) loadVehicles().catch(() => {}); }, 10000); }
+// Localiser : centre sur la dernière position connue (véhicule le plus récent), sans toucher au zoom.
+$("btnLocaliser").onclick = () => {
+  if (!map) return;
+  const cibles = vehicles.filter((v) => v.live);
+  if (!cibles.length) return;
+  cibles.sort((a, b) => new Date(b.live.recordedAt).getTime() - new Date(a.live.recordedAt).getTime());
+  map.panTo([cibles[0].live.latitude, cibles[0].live.longitude]);
+  showAppTab("carte");
+};
+function startPoll() { stopPoll(); pollT = setInterval(() => { if (!$("view-app").classList.contains("hidden")) loadVehicles().catch(() => {}); }, 5000); }
 function stopPoll() { if (pollT) clearInterval(pollT); pollT = null; }
 
 // ---------- Historique ----------
