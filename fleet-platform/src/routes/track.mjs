@@ -68,6 +68,7 @@ export async function ingest(req, res) {
 
     let inserted = 0;
     let rejected = 0;
+    let live = 0;
     for (const point of points) {
       try {
         const serial = text(point.serial, 40, { required: true });
@@ -82,6 +83,35 @@ export async function ingest(req, res) {
         const gate = await compteUtilisable(vehicle.owner_id);
         if (!gate.ok && !(await dossierVolOuvert(vehicle.id))) {
           rejected += 1;
+          continue;
+        }
+        // Ping de présence : position courante immédiate (direct), sans toucher
+        // trajets/distances/zones. L'historique, lui, se remplit via la file dans
+        // l'ordre chronologique (analyse ultérieure intacte).
+        if (point.live_only === true || point.liveOnly === true) {
+          const latPing = coordinate(point.lat, "lat");
+          const lonPing = coordinate(point.lon, "lon");
+          const atPing = parseDate(point.recordedAt || point.timestamp);
+          const speedPing = finiteNumber(point.speed, { min: 0, max: 400 }) ?? 0;
+          const headingPing = finiteNumber(point.heading, { min: 0, max: 360 }) ?? 0;
+          const fuelPing = finiteNumber(point.fuel ?? point.carburant, { min: 0, max: 100 });
+          await query(
+            `INSERT INTO fleet_current_positions(vehicle_id, car_id, latitude, longitude, speed, heading, fuel, trip_id, recorded_at, updated_at)
+             VALUES($1,$2,$3,$4,$5,$6,$7,NULL,$8,now())
+             ON CONFLICT (vehicle_id) DO UPDATE SET
+               car_id = EXCLUDED.car_id,
+               latitude = EXCLUDED.latitude,
+               longitude = EXCLUDED.longitude,
+               speed = EXCLUDED.speed,
+               heading = EXCLUDED.heading,
+               fuel = EXCLUDED.fuel,
+               trip_id = NULL,
+               recorded_at = EXCLUDED.recorded_at,
+               updated_at = now()
+             WHERE EXCLUDED.recorded_at >= fleet_current_positions.recorded_at`,
+            [vehicle.id, vehicle.car_id, latPing, lonPing, speedPing, headingPing, fuelPing, atPing]
+          );
+          live += 1;
           continue;
         }
         const lat = coordinate(point.lat, "lat");
@@ -125,7 +155,8 @@ export async function ingest(req, res) {
              fuel = EXCLUDED.fuel,
              trip_id = EXCLUDED.trip_id,
              recorded_at = EXCLUDED.recorded_at,
-             updated_at = now()`,
+             updated_at = now()
+           WHERE EXCLUDED.recorded_at >= fleet_current_positions.recorded_at`,
           [vehicle.id, vehicle.car_id, lat, lon, speed, heading, fuel, trip.id, recordedAt]
         );
         await query(`UPDATE fleet_trips SET distance_m = $1 WHERE id = $2`, [tripDistance, trip.id]);
@@ -135,7 +166,7 @@ export async function ingest(req, res) {
         rejected += 1;
       }
     }
-    return sendJson(res, 200, { ok: true, inserted, rejected, sessionId, ingestMs: Date.now() - started });
+    return sendJson(res, 200, { ok: true, inserted, rejected, live, sessionId, ingestMs: Date.now() - started });
   } catch (error) {
     return sendJson(res, 500, { error: String(error.message || error) });
   }

@@ -227,10 +227,18 @@ class TrackingService : Service(), SensorEventListener {
         )
     }
 
-    /** 1) renvoie la file d'attente (par lots de 50), 2) envoie le point courant. */
+    /** 0) direct (position actuelle, live seul), 1) file d'attente (par lots de 50), 2) point courant. */
     private suspend fun sendCycle(point: Map<String, Any>) {
         sendMutex.withLock {
             val dao = PendingDb.get(this).dao()
+            // 0. Direct d'abord si rattrapage en cours : la carte affiche le présent
+            // aussitôt, pendant que la file remplit l'historique dans l'ordre.
+            val rattrapage = try { dao.count() > 0 } catch (_: Exception) { false }
+            if (rattrapage) {
+                try {
+                    ApiClient.service().track(mapOf("cars" to listOf(point + ("live_only" to true))))
+                } catch (_: Exception) { }
+            }
             // 1. Vider la file d'abord (ordre chronologique conservé)
             var flushed = 0
             while (true) {
