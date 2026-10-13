@@ -88,7 +88,8 @@ class VehiclesFragment : Fragment() {
         val etat = if (live?.live != null) etatDe(live) else if (verrouille) "Suivi inactif (paiement requis)" else "⚪ Hors ligne"
         val li = live?.live
         val gps = li?.speed ?: 0.0
-        val vit = if (li == null) "" else "Vitesse : ${(if (gps > 0) gps else li.computedSpeed ?: 0.0).toInt()} km/h"
+        val heure = li?.recordedAt?.take(16)?.replace('T', ' ')?.substring(5) ?: ""
+        val vit = if (li == null) "" else "Vitesse : ${(if (gps > 0) gps else li.computedSpeed ?: 0.0).toInt()} km/h · $heure"
         box.addView(TextView(ctx).apply {
             text = "🚗 $titre\nMatricule : ${v.immatriculation ?: "—"}\n$etat" +
                 (if (vit.isNotBlank()) "\n$vit" else "") +

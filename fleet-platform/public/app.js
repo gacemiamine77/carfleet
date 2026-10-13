@@ -50,6 +50,11 @@ async function call(path, options = {}) {
 }
 function msg(id, texte, ok) { const el = $(id); el.textContent = texte || ""; el.className = "msg " + (ok ? "ok" : "err"); }
 function fmtDate(iso) { return iso ? new Date(iso).toLocaleString("fr-FR") : "—"; }
+function fmtHeure(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
 
 // ---------- Navigation ----------
 const VIEWS = ["view-home", "view-auth", "view-app"];
@@ -252,7 +257,7 @@ async function loadVehicles() {
   $("count").textContent = vehicles.length;
   $("rows").innerHTML = vehicles.map((v) => {
     const etat = v.live ? `<span class="dot ${statutVehicule(v).cls}"></span>${statutVehicule(v).txt}` : (suiviActif ? "Hors ligne" : "<i>suivi inactif</i>");
-    const vit = v.live ? `<b>${Math.round(vitesseLive(v))} km/h</b>` : "—";
+    const vit = v.live ? `<b>${Math.round(vitesseLive(v))} km/h</b><br /><small>${fmtHeure(v.live.recordedAt)}</small>` : "—";
     return `<tr>
       <td><b>${v.immatriculation}</b><br /><small>${[v.marque, v.modele, v.couleur].filter(Boolean).join(" ")}${v.nomInterne ? " · " + v.nomInterne : ""}</small></td>
       <td>${etat}</td>
