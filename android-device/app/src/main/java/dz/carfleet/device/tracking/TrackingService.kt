@@ -162,13 +162,32 @@ class TrackingService : Service(), SensorEventListener {
     }
 
     private var lastSentAt = 0L
+    private var lastEmittedLat: Double? = null
+    private var lastEmittedLon: Double? = null
+    private var lastEmittedAt = 0L
+
+    private fun aBouge(loc: Location): Boolean {
+        val plat = lastEmittedLat
+        val plon = lastEmittedLon
+        if (plat == null || plon == null) return true
+        val res = FloatArray(1)
+        Location.distanceBetween(plat, plon, loc.latitude, loc.longitude, res)
+        return res[0] >= SEUIL_M
+    }
 
     private fun maybeSend(force: Boolean = false) {
         val loc = lastLoc ?: return
         val now = System.currentTimeMillis()
         val minGap = (session.intervalSec.coerceIn(2, 120) * 1000).toLong() - 500
         if (!force && now - lastSentAt < minGap) return
+        if (!aBouge(loc) && now - lastEmittedAt < HEARTBEAT_MS) {
+            State.lastCode = "⏸ pause (immobile)"
+            return
+        }
         lastSentAt = now
+        lastEmittedLat = loc.latitude
+        lastEmittedLon = loc.longitude
+        lastEmittedAt = now
         scope.launch { sendCycle(buildPoint(loc)) }
     }
 
@@ -270,6 +289,10 @@ class TrackingService : Service(), SensorEventListener {
 
     companion object {
         const val CHANNEL = "carfleet_tracking"
+        // Immobile : on n'envoie rien sous ce déplacement (gigue GPS filtrée),
+        // sauf un point de présence toutes les 5 min (statut « à l'arrêt » frais).
+        const val SEUIL_M = 20.0f
+        const val HEARTBEAT_MS = 5 * 60_000L
     }
 }
 
