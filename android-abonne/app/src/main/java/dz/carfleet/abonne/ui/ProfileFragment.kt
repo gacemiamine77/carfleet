@@ -75,6 +75,13 @@ class ProfileFragment : Fragment() {
         root.addView(etPwOld)
         root.addView(etPwNew)
         root.addView(btnPw)
+        root.addView(Ui.titre(ctx, "Arrêter / supprimer", 16f))
+        val btnResilier = Ui.bouton(ctx, "Arrêter l'abonnement")
+        val btnSuppr = Ui.bouton(ctx, "Supprimer mon compte…")
+        val btnAnnulSuppr = Ui.bouton(ctx, "Annuler ma demande de suppression").apply { visibility = View.GONE }
+        root.addView(btnResilier)
+        root.addView(btnSuppr)
+        root.addView(btnAnnulSuppr)
         root.addView(tvErr)
         root.addView(box)
 
@@ -95,6 +102,7 @@ class ProfileFragment : Fragment() {
                         etTel.setText(p?.telephone ?: "")
                         etEmail.setText(p?.email ?: "")
                         etAdresse.setText(p?.adresse ?: "")
+                        btnAnnulSuppr.visibility = if (p?.statutCompte == "suppression_demandee") View.VISIBLE else View.GONE
                         val type = if (p?.type == "morale") "entreprise" else "particulier"
                         when (val rp = ApiHelper.run { ApiClient.service().plans(type) }) {
                             is ApiResult.Ok -> {
@@ -209,6 +217,55 @@ class ProfileFragment : Fragment() {
                         tvErr.text = "Mot de passe changé."
                         etPwOld.text.clear()
                         etPwNew.text.clear()
+                    }
+                    is ApiResult.Err -> tvErr.text = r.msg
+                }
+            }
+        }
+        btnResilier.setOnClickListener {
+            AlertDialog.Builder(ctx)
+                .setTitle("Arrêter l'abonnement ?")
+                .setMessage("Le suivi sera interrompu immédiatement. En cas de paiement déjà effectué, aucun remboursement.")
+                .setPositiveButton("Arrêter") { _, _ ->
+                    lifecycleScope.launch {
+                        when (val r = ApiHelper.run { ApiClient.service().annulerAbonnement(session.authHeader, emptyMap()) }) {
+                            is ApiResult.Ok -> {
+                                tvErr.text = "Abonnement arrêté."
+                                charger()
+                            }
+                            is ApiResult.Err -> tvErr.text = r.msg
+                        }
+                    }
+                }
+                .setNegativeButton("Annuler", null).show()
+        }
+        btnSuppr.setOnClickListener {
+            val etPass = Ui.champ(ctx, "Mot de passe (confirmation)", password = true)
+            AlertDialog.Builder(ctx)
+                .setTitle("Supprimer mon compte ?")
+                .setMessage("Effacement définitif (compte, véhicules, positions, historique, zones, paiements) après validation admin. Le suivi sera interrompu.")
+                .setView(etPass)
+                .setPositiveButton("Confirmer") { _, _ ->
+                    lifecycleScope.launch {
+                        when (val r = ApiHelper.run {
+                            ApiClient.service().demanderSuppression(session.authHeader, mapOf("password" to etPass.text.toString()))
+                        }) {
+                            is ApiResult.Ok -> {
+                                tvErr.text = "Demande transmise à l'administrateur."
+                                charger()
+                            }
+                            is ApiResult.Err -> tvErr.text = r.msg
+                        }
+                    }
+                }
+                .setNegativeButton("Annuler", null).show()
+        }
+        btnAnnulSuppr.setOnClickListener {
+            lifecycleScope.launch {
+                when (val r = ApiHelper.run { ApiClient.service().annulerSuppression(session.authHeader) }) {
+                    is ApiResult.Ok -> {
+                        tvErr.text = "Demande de suppression annulée."
+                        charger()
                     }
                     is ApiResult.Err -> tvErr.text = r.msg
                 }

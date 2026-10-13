@@ -39,6 +39,23 @@ interface ApiService {
         @Body body: Map<String, @JvmSuppressWildcards Any?>
     ): OkResponse
 
+    @POST("api/fleet/abonnement/annuler")
+    suspend fun annulerAbonnement(
+        @Header("Authorization") auth: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any?>
+    ): OkResponse
+
+    @POST("api/fleet/compte/suppression")
+    suspend fun demanderSuppression(
+        @Header("Authorization") auth: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any?>
+    ): OkResponse
+
+    @POST("api/fleet/compte/suppression/annuler")
+    suspend fun annulerSuppression(
+        @Header("Authorization") auth: String
+    ): OkResponse
+
     @POST("api/fleet/paiement/declarer")
     suspend fun declarerPaiement(
         @Header("Authorization") auth: String,

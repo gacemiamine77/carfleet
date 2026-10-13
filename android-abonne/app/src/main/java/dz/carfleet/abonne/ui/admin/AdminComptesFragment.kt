@@ -36,7 +36,7 @@ class AdminComptesFragment : Fragment() {
         val tvErr: TextView = view.findViewById(R.id.tvErr)
 
         val spType = Ui.liste(ctx, listOf("Tous", "Particulier", "Entreprise"))
-        val spStatut = Ui.liste(ctx, listOf("Tous", "inscription_recue", "en_attente_paiement", "paiement_a_verifier", "en_attente_validation", "actif", "expire", "suspendu", "refuse"))
+        val spStatut = Ui.liste(ctx, listOf("Tous", "inscription_recue", "en_attente_paiement", "paiement_a_verifier", "en_attente_validation", "actif", "expire", "suspendu", "refuse", "resilie", "suppression_demandee"))
         val etQ = Ui.champ(ctx, "Recherche (nom, téléphone, utilisateur)")
         val btnFiltrer = Ui.bouton(ctx, "Filtrer")
         val liste = Ui.box(ctx)
@@ -48,7 +48,7 @@ class AdminComptesFragment : Fragment() {
 
         fun charger() {
             val types = listOf<String?>(null, "particulier", "entreprise")
-            val stats = listOf<String?>(null, "inscription_recue", "en_attente_paiement", "paiement_a_verifier", "en_attente_validation", "actif", "expire", "suspendu", "refuse")
+            val stats = listOf<String?>(null, "inscription_recue", "en_attente_paiement", "paiement_a_verifier", "en_attente_validation", "actif", "expire", "suspendu", "refuse", "resilie", "suppression_demandee")
             tvErr.text = "Chargement…"
             lifecycleScope.launch {
                 when (val r = ApiHelper.run {
@@ -115,10 +115,51 @@ class AdminComptesFragment : Fragment() {
                 }
             })
         }
-        action("Valider", "valider", false)
-        action("Refuser", "refuser", true)
-        action("Suspendre", "suspendre", true)
-        action("Réactiver", "reactiver", false)
+        if (c.statutCompte == "suppression_demandee") {
+            row.addView(Button(ctx).apply {
+                text = "Rejeter demande"
+                setOnClickListener {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        when (val r = ApiHelper.run {
+                            ApiClient.service().adminGererCompte(session.authHeader, mapOf("ownerId" to c.id, "action" to "rejeter_suppression"))
+                        }) {
+                            is ApiResult.Ok -> {
+                                tvErr.text = "Demande rejetée."
+                                recharge()
+                            }
+                            is ApiResult.Err -> tvErr.text = r.msg
+                        }
+                    }
+                }
+            })
+            row.addView(Button(ctx).apply {
+                text = "Supprimer tout"
+                setOnClickListener {
+                    AlertDialog.Builder(ctx)
+                        .setTitle("Effacer définitivement ?")
+                        .setMessage("Compte, véhicules, positions, historique, zones et paiements. Irréversible.")
+                        .setPositiveButton("Supprimer") { _, _ ->
+                            viewLifecycleOwner.lifecycleScope.launch {
+                                when (val r = ApiHelper.run {
+                                    ApiClient.service().adminGererCompte(session.authHeader, mapOf("ownerId" to c.id, "action" to "supprimer_definitivement"))
+                                }) {
+                                    is ApiResult.Ok -> {
+                                        tvErr.text = "Compte effacé."
+                                        recharge()
+                                    }
+                                    is ApiResult.Err -> tvErr.text = r.msg
+                                }
+                            }
+                        }
+                        .setNegativeButton("Annuler", null).show()
+                }
+            })
+        } else {
+            action("Valider", "valider", false)
+            action("Refuser", "refuser", true)
+            action("Suspendre", "suspendre", true)
+            action("Réactiver", "reactiver", false)
+        }
         card.addView(row)
         return card
     }
